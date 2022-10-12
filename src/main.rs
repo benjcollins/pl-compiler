@@ -1,12 +1,11 @@
 #![feature(hash_set_entry)]
 
-use std::fs;
-
 mod ast;
 mod cfg;
 mod idents;
 mod lexer;
 mod parser;
+mod test_parser;
 mod token;
 mod unify;
 

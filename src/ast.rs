@@ -16,7 +16,7 @@ pub enum Expr<'s> {
     Ident(Ident<'s>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
+#[derive(Debug, Clone, Copy, EnumIter, PartialEq)]
 pub enum InfixOp {
     Add,
     Subtract,
@@ -28,7 +28,9 @@ pub enum RefExpr<'s> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type {}
+pub enum Type {
+    I32,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt<'s> {
@@ -39,7 +41,7 @@ pub enum Stmt<'s> {
     },
     Assign {
         ref_expr: RefExpr<'s>,
-        expr: Option<Expr<'s>>,
+        expr: Expr<'s>,
     },
     If(If<'s>),
     While {
@@ -91,5 +93,24 @@ impl InfixOp {
 impl<'s> fmt::Display for Expr<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
+    }
+}
+
+impl<'s> Expr<'s> {
+    pub fn infix(left: Expr<'s>, op: InfixOp, right: Expr<'s>) -> Expr<'s> {
+        Expr::Infix {
+            left: Box::new(left),
+            right: Box::new(right),
+            op,
+        }
+    }
+    pub fn ident(s: &'s str) -> Expr<'s> {
+        Expr::Ident(Ident::new(s))
+    }
+}
+
+impl<'s> RefExpr<'s> {
+    pub fn ident(s: &'s str) -> RefExpr<'s> {
+        RefExpr::Ident(Ident::new(s))
     }
 }

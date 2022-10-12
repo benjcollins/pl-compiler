@@ -22,12 +22,14 @@ pub enum Symbol {
     CloseBrace,
     Plus,
     Minus,
+    Colon,
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, PartialEq)]
 pub enum Keyword {
     Func,
     Var,
+    Return,
 }
 
 impl<'s> TokenKind<'s> {
@@ -54,6 +56,7 @@ impl Symbol {
             Symbol::CloseBrace => ")",
             Symbol::Plus => "+",
             Symbol::Minus => "-",
+            Symbol::Colon => ":",
         }
     }
 }
@@ -63,6 +66,7 @@ impl Keyword {
         match self {
             Keyword::Func => "func",
             Keyword::Var => "var",
+            Keyword::Return => "return",
         }
     }
 }

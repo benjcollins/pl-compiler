@@ -1,20 +1,20 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Expr, InfixOp},
+    ast::{Expr, InfixOp, RefExpr, Stmt, Type},
     idents::Idents,
     lexer::Lexer,
-    token::{Symbol, Token, TokenKind},
+    token::{Keyword, Symbol, Token, TokenKind},
 };
 
-struct Parser<'s> {
+pub struct Parser<'s> {
     lexer: Lexer<'s>,
     token: Option<Token<'s>>,
     idents: Idents<'s>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-enum Prec {
+pub enum Prec {
     Product,
     Sum,
     Bracket,
@@ -35,7 +35,7 @@ fn op_prec(op: InfixOp) -> Prec {
 }
 
 impl<'s> Parser<'s> {
-    fn new(source: &'s str) -> Parser<'s> {
+    pub fn new(source: &'s str) -> Parser<'s> {
         let mut lexer = Lexer::new(source);
         let token = lexer.next_token();
         Parser {
@@ -44,7 +44,7 @@ impl<'s> Parser<'s> {
             idents: Idents::new(),
         }
     }
-    fn peek(&self) -> Option<TokenKind<'s>> {
+    pub fn peek(&self) -> Option<TokenKind<'s>> {
         self.token.map(|token| token.kind)
     }
     fn next(&mut self) {
@@ -69,7 +69,7 @@ impl<'s> Parser<'s> {
             Err(())
         }
     }
-    fn parse_expr(&mut self, prec: Prec) -> Result<Expr<'s>, ()> {
+    pub fn parse_expr(&mut self, prec: Prec) -> Result<Expr<'s>, ()> {
         let mut left = match self.peek() {
             Some(TokenKind::Int(value)) => {
                 self.next();
@@ -85,7 +85,7 @@ impl<'s> Parser<'s> {
                 self.expect_symbol(Symbol::CloseBrace)?;
                 expr
             }
-            _ => panic!(),
+            _ => return Err(()),
         };
         'outer: loop {
             for op in InfixOp::iter() {
@@ -103,22 +103,54 @@ impl<'s> Parser<'s> {
         }
         Ok(left)
     }
-}
-
-#[test]
-fn test_parse_expr() {
-    let mut parser = Parser::new("5 + (2 - 9)");
-    let expr = parser.parse_expr(Prec::Bracket);
-    assert_eq!(
-        expr,
-        Ok(Expr::Infix {
-            left: Box::new(Expr::Int(5)),
-            op: InfixOp::Add,
-            right: Box::new(Expr::Infix {
-                left: Box::new(Expr::Int(2)),
-                op: InfixOp::Subtract,
-                right: Box::new(Expr::Int(9)),
-            })
-        })
-    )
+    pub fn parse_type(&mut self) -> Result<Type, ()> {
+        self.next();
+        Ok(Type::I32)
+    }
+    pub fn parse_stmt(&mut self) -> Result<Stmt<'s>, ()> {
+        match self.peek() {
+            Some(TokenKind::Keyword(Keyword::Var)) => {
+                self.next();
+                let name = match self.peek() {
+                    Some(TokenKind::Ident(name)) => self.idents.intern(name),
+                    _ => return Err(()),
+                };
+                self.next();
+                let ty = if self.eat_symbol(Symbol::Colon) {
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                let expr = if self.eat_symbol(Symbol::Assign) {
+                    Some(self.parse_expr(Prec::Bracket)?)
+                } else {
+                    None
+                };
+                self.expect_symbol(Symbol::Semicolon)?;
+                Ok(Stmt::Decl { name, ty, expr })
+            }
+            Some(TokenKind::Ident(name)) => {
+                self.next();
+                self.expect_symbol(Symbol::Assign)?;
+                let expr = self.parse_expr(Prec::Bracket)?;
+                self.expect_symbol(Symbol::Semicolon)?;
+                Ok(Stmt::Assign {
+                    ref_expr: RefExpr::Ident(self.idents.intern(name)),
+                    expr,
+                })
+            }
+            Some(TokenKind::Keyword(Keyword::Return)) => {
+                self.next();
+                let expr = if self.eat_symbol(Symbol::Semicolon) {
+                    None
+                } else {
+                    let expr = self.parse_expr(Prec::Bracket)?;
+                    self.expect_symbol(Symbol::Semicolon)?;
+                    Some(expr)
+                };
+                Ok(Stmt::Return(expr))
+            }
+            _ => Err(()),
+        }
+    }
 }

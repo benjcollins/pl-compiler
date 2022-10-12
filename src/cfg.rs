@@ -23,7 +23,7 @@ pub enum Stmt<'s> {
     },
     Assign {
         ref_expr: ast::RefExpr<'s>,
-        expr: Option<ast::Expr<'s>>,
+        expr: ast::Expr<'s>,
     },
     Drop(Ident<'s>),
 }
