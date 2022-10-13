@@ -60,23 +60,20 @@ impl<'s> Parser<'s> {
             _ => self.token = self.lexer.next_token(),
         }
     }
-    fn eat_symbol(&mut self, symbol: Symbol) -> bool {
+    fn eat(&mut self, f: impl Fn(&TokenKind) -> bool) -> bool {
         match self.peek() {
-            Some(TokenKind::Symbol(s)) if symbol == s => {
+            Some(token) if f(&token) => {
                 self.next();
                 true
             }
             _ => false,
         }
     }
+    fn eat_symbol(&mut self, symbol: Symbol) -> bool {
+        self.eat(|token| *token == TokenKind::Symbol(symbol))
+    }
     fn eat_keyword(&mut self, keyword: Keyword) -> bool {
-        match self.peek() {
-            Some(TokenKind::Keyword(k)) if keyword == k => {
-                self.next();
-                true
-            }
-            _ => false,
-        }
+        self.eat(|token| *token == TokenKind::Keyword(keyword))
     }
     fn expect_symbol(&mut self, symbol: Symbol) -> Result<(), Expected> {
         if self.eat_symbol(symbol) {
