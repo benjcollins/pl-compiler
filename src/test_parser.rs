@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::{
-    ast::{Block, Expr, InfixOp, RefExpr, Stmt, Type},
+    ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type},
     idents::Ident,
     parser::{Parser, Prec},
 };
@@ -59,17 +59,44 @@ fn test_parse_return() {
 
 #[test]
 fn test_parse_while() {
-    let mut parser = Parser::new("while a { x = 5; }");
+    let mut parser = Parser::new("while a { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::While {
             cond: Expr::ident("a"),
-            block: Block(vec![Stmt::Assign {
-                ref_expr: RefExpr::ident("x"),
-                expr: Expr::Int(5)
-            }])
+            block: Block(vec![])
         }
+    )
+}
+
+#[test]
+fn test_parse_if() {
+    let mut parser = Parser::new("if x { }");
+    let stmt = parser.parse_stmt().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        stmt,
+        Stmt::If(If {
+            cond: Expr::ident("x"),
+            if_block: Block(vec![]),
+            else_block: Else::None,
+        })
+    )
+}
+
+#[test]
+fn test_parse_if_else() {
+    let mut parser = Parser::new("if x { } else { }");
+    let stmt = parser.parse_stmt().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        stmt,
+        Stmt::If(If {
+            cond: Expr::ident("x"),
+            if_block: Block(vec![]),
+            else_block: Else::Block(Block(vec![]))
+        })
     )
 }

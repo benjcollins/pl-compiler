@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Block, Expr, InfixOp, RefExpr, Stmt, Type},
+    ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type},
     idents::Idents,
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
@@ -60,9 +60,18 @@ impl<'s> Parser<'s> {
             _ => self.token = self.lexer.next_token(),
         }
     }
-    fn eat_symbol(&mut self, s0: Symbol) -> bool {
+    fn eat_symbol(&mut self, symbol: Symbol) -> bool {
         match self.peek() {
-            Some(TokenKind::Symbol(s1)) if s0 == s1 => {
+            Some(TokenKind::Symbol(s)) if symbol == s => {
+                self.next();
+                true
+            }
+            _ => false,
+        }
+    }
+    fn eat_keyword(&mut self, keyword: Keyword) -> bool {
+        match self.peek() {
+            Some(TokenKind::Keyword(k)) if keyword == k => {
                 self.next();
                 true
             }
@@ -162,6 +171,21 @@ impl<'s> Parser<'s> {
                 let cond = self.parse_expr(Prec::Bracket)?;
                 let block = self.parse_block()?;
                 Ok(Stmt::While { cond, block })
+            }
+            Some(TokenKind::Keyword(Keyword::If)) => {
+                self.next();
+                let cond = self.parse_expr(Prec::Bracket)?;
+                let if_block = self.parse_block()?;
+                let else_block = if self.eat_keyword(Keyword::Else) {
+                    Else::Block(self.parse_block()?)
+                } else {
+                    Else::None
+                };
+                Ok(Stmt::If(If {
+                    cond,
+                    if_block,
+                    else_block,
+                }))
             }
             _ => Err(Expected::Stmt),
         }

@@ -33,6 +33,8 @@ pub enum Keyword {
     Var,
     Return,
     While,
+    If,
+    Else,
 }
 
 impl Symbol {
@@ -58,6 +60,8 @@ impl Keyword {
             Keyword::Var => "var",
             Keyword::Return => "return",
             Keyword::While => "while",
+            Keyword::If => "if",
+            Keyword::Else => "else",
         }
     }
 }
