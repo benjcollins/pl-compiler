@@ -23,6 +23,8 @@ pub enum Symbol {
     Plus,
     Minus,
     Colon,
+    OpenCurlyBrace,
+    CloseCurlyBrace,
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, PartialEq)]
@@ -30,21 +32,7 @@ pub enum Keyword {
     Func,
     Var,
     Return,
-}
-
-impl<'s> TokenKind<'s> {
-    pub fn is_symbol(&self, symbol: Symbol) -> bool {
-        match self {
-            TokenKind::Symbol(token) => *token == symbol,
-            _ => false,
-        }
-    }
-    fn is_keyword(&self, keyword: Keyword) -> bool {
-        match self {
-            TokenKind::Keyword(token) => *token == keyword,
-            _ => false,
-        }
-    }
+    While,
 }
 
 impl Symbol {
@@ -57,6 +45,8 @@ impl Symbol {
             Symbol::Plus => "+",
             Symbol::Minus => "-",
             Symbol::Colon => ":",
+            Symbol::OpenCurlyBrace => "{",
+            Symbol::CloseCurlyBrace => "}",
         }
     }
 }
@@ -67,6 +57,7 @@ impl Keyword {
             Keyword::Func => "func",
             Keyword::Var => "var",
             Keyword::Return => "return",
+            Keyword::While => "while",
         }
     }
 }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::{
-    ast::{Expr, InfixOp, RefExpr, Stmt, Type},
+    ast::{Block, Expr, InfixOp, RefExpr, Stmt, Type},
     idents::Ident,
     parser::{Parser, Prec},
 };
@@ -55,4 +55,21 @@ fn test_parse_return() {
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(stmt, Stmt::Return(Some(Expr::ident("x"))))
+}
+
+#[test]
+fn test_parse_while() {
+    let mut parser = Parser::new("while a { x = 5; }");
+    let stmt = parser.parse_stmt().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        stmt,
+        Stmt::While {
+            cond: Expr::ident("a"),
+            block: Block(vec![Stmt::Assign {
+                ref_expr: RefExpr::ident("x"),
+                expr: Expr::Int(5)
+            }])
+        }
+    )
 }

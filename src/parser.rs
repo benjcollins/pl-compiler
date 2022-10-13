@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Expr, InfixOp, RefExpr, Stmt, Type},
+    ast::{Block, Expr, InfixOp, RefExpr, Stmt, Type},
     idents::Idents,
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
@@ -15,7 +15,6 @@ pub struct Parser<'s> {
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum Prec {
-    Product,
     Sum,
     Bracket,
 }
@@ -32,6 +31,14 @@ fn op_prec(op: InfixOp) -> Prec {
         InfixOp::Add => Prec::Sum,
         InfixOp::Subtract => Prec::Sum,
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Expected {
+    Symbol(Symbol),
+    Ident,
+    Stmt,
+    Expr,
 }
 
 impl<'s> Parser<'s> {
@@ -62,14 +69,14 @@ impl<'s> Parser<'s> {
             _ => false,
         }
     }
-    fn expect_symbol(&mut self, symbol: Symbol) -> Result<(), ()> {
+    fn expect_symbol(&mut self, symbol: Symbol) -> Result<(), Expected> {
         if self.eat_symbol(symbol) {
             Ok(())
         } else {
-            Err(())
+            Err(Expected::Symbol(symbol))
         }
     }
-    pub fn parse_expr(&mut self, prec: Prec) -> Result<Expr<'s>, ()> {
+    pub fn parse_expr(&mut self, prec: Prec) -> Result<Expr<'s>, Expected> {
         let mut left = match self.peek() {
             Some(TokenKind::Int(value)) => {
                 self.next();
@@ -85,7 +92,7 @@ impl<'s> Parser<'s> {
                 self.expect_symbol(Symbol::CloseBrace)?;
                 expr
             }
-            _ => return Err(()),
+            _ => return Err(Expected::Expr),
         };
         'outer: loop {
             for op in InfixOp::iter() {
@@ -103,17 +110,17 @@ impl<'s> Parser<'s> {
         }
         Ok(left)
     }
-    pub fn parse_type(&mut self) -> Result<Type, ()> {
+    pub fn parse_type(&mut self) -> Result<Type, Expected> {
         self.next();
         Ok(Type::I32)
     }
-    pub fn parse_stmt(&mut self) -> Result<Stmt<'s>, ()> {
+    pub fn parse_stmt(&mut self) -> Result<Stmt<'s>, Expected> {
         match self.peek() {
             Some(TokenKind::Keyword(Keyword::Var)) => {
                 self.next();
                 let name = match self.peek() {
                     Some(TokenKind::Ident(name)) => self.idents.intern(name),
-                    _ => return Err(()),
+                    _ => return Err(Expected::Ident),
                 };
                 self.next();
                 let ty = if self.eat_symbol(Symbol::Colon) {
@@ -150,7 +157,22 @@ impl<'s> Parser<'s> {
                 };
                 Ok(Stmt::Return(expr))
             }
-            _ => Err(()),
+            Some(TokenKind::Keyword(Keyword::While)) => {
+                self.next();
+                let cond = self.parse_expr(Prec::Bracket)?;
+                let block = self.parse_block()?;
+                Ok(Stmt::While { cond, block })
+            }
+            _ => Err(Expected::Stmt),
         }
+    }
+    fn parse_block(&mut self) -> Result<Block<'s>, Expected> {
+        let mut stmts = vec![];
+        self.expect_symbol(Symbol::OpenCurlyBrace)?;
+        while self.peek() != Some(TokenKind::Symbol(Symbol::CloseCurlyBrace)) {
+            stmts.push(self.parse_stmt()?);
+        }
+        self.next();
+        Ok(Block(stmts))
     }
 }
