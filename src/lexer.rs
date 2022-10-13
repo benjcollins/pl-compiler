@@ -46,7 +46,8 @@ impl<'s> Lexer<'s> {
                 continue;
             }
             if self.eat_str("//") {
-                self.next_while(|ch| ch != '\n')
+                self.next_while(|ch| ch != '\n');
+                continue;
             }
             if ch.is_numeric() {
                 self.next_while(|ch| ch.is_numeric());
@@ -99,4 +100,10 @@ fn test_lex_keyword_var() {
     let mut lexer = Lexer::new("var");
     let token = lexer.next_token().unwrap();
     assert_eq!(token.kind, TokenKind::Keyword(Keyword::Var));
+}
+
+#[test]
+fn test_lex_comment() {
+    let mut lexer = Lexer::new("// hello\n");
+    assert!(lexer.next_token().is_none());
 }
