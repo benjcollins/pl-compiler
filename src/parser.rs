@@ -123,6 +123,24 @@ impl<'s> Parser<'s> {
         self.next();
         Ok(Type::I32)
     }
+    fn parse_if(&mut self) -> Result<If<'s>, Expected> {
+        let cond = self.parse_expr(Prec::Bracket)?;
+        let if_block = self.parse_block()?;
+        let else_block = if self.eat_keyword(Keyword::Else) {
+            if self.eat_keyword(Keyword::If) {
+                Else::If(Box::new(self.parse_if()?))
+            } else {
+                Else::Block(self.parse_block()?)
+            }
+        } else {
+            Else::None
+        };
+        Ok(If {
+            cond,
+            if_block,
+            else_block,
+        })
+    }
     pub fn parse_stmt(&mut self) -> Result<Stmt<'s>, Expected> {
         match self.peek() {
             Some(TokenKind::Keyword(Keyword::Var)) => {
@@ -174,18 +192,7 @@ impl<'s> Parser<'s> {
             }
             Some(TokenKind::Keyword(Keyword::If)) => {
                 self.next();
-                let cond = self.parse_expr(Prec::Bracket)?;
-                let if_block = self.parse_block()?;
-                let else_block = if self.eat_keyword(Keyword::Else) {
-                    Else::Block(self.parse_block()?)
-                } else {
-                    Else::None
-                };
-                Ok(Stmt::If(If {
-                    cond,
-                    if_block,
-                    else_block,
-                }))
+                Ok(Stmt::If(self.parse_if()?))
             }
             _ => Err(Expected::Stmt),
         }

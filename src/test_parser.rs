@@ -100,3 +100,22 @@ fn test_parse_if_else() {
         })
     )
 }
+
+#[test]
+fn test_parse_if_else_if() {
+    let mut parser = Parser::new("if x { } else if y { }");
+    let stmt = parser.parse_stmt().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        stmt,
+        Stmt::If(If {
+            cond: Expr::ident("x"),
+            if_block: Block(vec![]),
+            else_block: Else::If(Box::new(If {
+                cond: Expr::ident("y"),
+                if_block: Block(vec![]),
+                else_block: Else::None
+            }))
+        })
+    )
+}
