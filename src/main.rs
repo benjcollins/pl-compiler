@@ -9,6 +9,7 @@ mod cfg;
 mod idents;
 mod lexer;
 mod parser;
+mod test_lexer;
 mod test_parser;
 mod token;
 //mod unify;
