@@ -80,9 +80,10 @@ pub struct Param<'s> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Func<'s> {
-    params: Vec<Param<'s>>,
-    returns: Option<Type>,
-    block: Option<Block<'s>>,
+    pub name: Ident<'s>,
+    pub params: Vec<Param<'s>>,
+    pub returns: Option<Type>,
+    pub block: Option<Block<'s>>,
 }
 
 impl InfixOp {
@@ -116,5 +117,11 @@ impl<'s> Expr<'s> {
 impl<'s> RefExpr<'s> {
     pub fn ident(s: &'s str) -> RefExpr<'s> {
         RefExpr::Ident(Ident::new(s))
+    }
+}
+
+impl<'s> Block<'s> {
+    pub fn empty() -> Block<'s> {
+        Block(vec![])
     }
 }

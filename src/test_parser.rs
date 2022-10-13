@@ -1,3 +1,4 @@
+use crate::ast::Func;
 #[cfg(test)]
 use crate::{
     ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type},
@@ -125,5 +126,27 @@ fn test_parse_deref_assign() {
     let mut parser = Parser::new("*x = 3");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
-    assert_eq!(stmt, Stmt::DerefAssign { ptr: Expr::ident("x"), expr: Expr::Int(3) })
+    assert_eq!(
+        stmt,
+        Stmt::DerefAssign {
+            ptr: Expr::ident("x"),
+            expr: Expr::Int(3)
+        }
+    )
+}
+
+#[test]
+fn test_parse_func() {
+    let mut parser = Parser::new("func f() { }");
+    let func = parser.parse_func().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        func,
+        Func {
+            name: Ident::new("f"),
+            block: Some(Block::empty()),
+            params: vec![],
+            returns: None,
+        }
+    )
 }

@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type},
+    ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type, Func},
     idents::Idents,
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
@@ -39,6 +39,7 @@ pub enum Expected {
     Ident,
     Stmt,
     Expr,
+    Func,
 }
 
 impl<'s> Parser<'s> {
@@ -210,5 +211,27 @@ impl<'s> Parser<'s> {
         }
         self.next();
         Ok(Block(stmts))
+    }
+
+    pub fn parse_func(&mut self) -> Result<Func<'s>, Expected> {
+        match self.peek() {
+            Some(TokenKind::Keyword(Keyword::Func)) => {
+                self.next();
+                let name = match self.peek() {
+                    Some(TokenKind::Ident(name)) => name,
+                    _ => return Err(Expected::Ident),
+                };
+                self.next();
+                self.expect_symbol(Symbol::OpenBrace)?;
+                self.expect_symbol(Symbol::CloseBrace)?;
+                let block = if self.eat_symbol(Symbol::Semicolon) {
+                    None
+                } else {
+                    Some(self.parse_block()?)
+                };
+                Ok(Func { name: self.idents.intern(name), params: vec![], returns: None, block })
+            }
+            _ => Err(Expected::Func),
+        }
     }
 }
