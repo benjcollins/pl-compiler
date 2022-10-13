@@ -43,6 +43,10 @@ pub enum Stmt<'s> {
         ref_expr: RefExpr<'s>,
         expr: Expr<'s>,
     },
+    DerefAssign {
+        ptr: Expr<'s>,
+        expr: Expr<'s>,
+    },
     If(If<'s>),
     While {
         cond: Expr<'s>,

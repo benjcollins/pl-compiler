@@ -119,3 +119,11 @@ fn test_parse_if_else_if() {
         })
     )
 }
+
+#[test]
+fn test_parse_deref_assign() {
+    let mut parser = Parser::new("*x = 3");
+    let stmt = parser.parse_stmt().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(stmt, Stmt::DerefAssign { ptr: Expr::ident("x"), expr: Expr::Int(3) })
+}

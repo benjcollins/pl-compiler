@@ -170,6 +170,14 @@ impl<'s> Parser<'s> {
                     expr,
                 })
             }
+            Some(TokenKind::Symbol(Symbol::Asterisk)) => {
+                self.next();
+                let ptr = self.parse_expr(Prec::Bracket)?;
+                self.expect_symbol(Symbol::Assign)?;
+                let expr = self.parse_expr(Prec::Bracket)?;
+                self.expect_symbol(Symbol::Semicolon);
+                Ok(Stmt::DerefAssign { ptr, expr })
+            }
             Some(TokenKind::Keyword(Keyword::Return)) => {
                 self.next();
                 let expr = if self.eat_symbol(Symbol::Semicolon) {

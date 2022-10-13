@@ -25,6 +25,10 @@ pub enum Stmt<'s> {
         ref_expr: ast::RefExpr<'s>,
         expr: ast::Expr<'s>,
     },
+    DerefAssign {
+        ptr: ast::Expr<'s>,
+        expr: ast::Expr<'s>,
+    },
     Drop(Ident<'s>),
 }
 
@@ -68,7 +72,7 @@ impl<'b, 's> State<'b, 's> {
         match if_stmt.else_block {
             ast::Else::Block(block) => self.compile_block(block),
             ast::Else::If(if_stmt) => self.compile_if(*if_stmt),
-            ast::Else::None => todo!(),
+            ast::Else::None => (),
         }
         self.current_block.borrow_mut().branch = Branch::Static(exit_block);
 
@@ -115,6 +119,12 @@ impl<'b, 's> State<'b, 's> {
                     .borrow_mut()
                     .stmts
                     .push(Stmt::Assign { ref_expr, expr }),
+
+                ast::Stmt::DerefAssign { ptr, expr } => self
+                    .current_block
+                    .borrow_mut()
+                    .stmts
+                    .push(Stmt::DerefAssign { ptr, expr }),
             }
         }
         for name in decls {
