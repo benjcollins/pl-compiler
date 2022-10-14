@@ -1,7 +1,6 @@
-use crate::ast::Func;
 #[cfg(test)]
 use crate::{
-    ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type},
+    ast::{Block, Else, Expr, Func, If, InfixOp, RefExpr, Stmt, Type},
     idents::Ident,
     parser::{Parser, Prec},
 };
@@ -123,7 +122,7 @@ fn test_parse_if_else_if() {
 
 #[test]
 fn test_parse_deref_assign() {
-    let mut parser = Parser::new("*x = 3");
+    let mut parser = Parser::new("*x = 3;");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(

@@ -2,6 +2,8 @@
 
 use std::fs;
 
+use typed_arena::Arena;
+
 use crate::parser::Parser;
 
 mod ast;
@@ -17,13 +19,16 @@ mod token;
 fn main() {
     let source = fs::read_to_string("example.txt").unwrap();
     let mut parser = Parser::new(&source);
-    let stmt = match parser.parse_stmt() {
-        Ok(stmt) => stmt,
+    let func = match parser.parse_func() {
+        Ok(func) => func,
         Err(err) => {
             println!("{:?}", err);
             println!("{:?}", parser.peek());
             return;
         }
     };
-    println!("{:?}", stmt);
+    let arena = Arena::new();
+//    println!("{:?}", func);
+    let cfg_func = cfg::create_cfg(func, &arena).unwrap();
+    println!("{}", cfg_func);
 }

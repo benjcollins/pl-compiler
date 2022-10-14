@@ -176,7 +176,7 @@ impl<'s> Parser<'s> {
                 let ptr = self.parse_expr(Prec::Bracket)?;
                 self.expect_symbol(Symbol::Assign)?;
                 let expr = self.parse_expr(Prec::Bracket)?;
-                self.expect_symbol(Symbol::Semicolon);
+                self.expect_symbol(Symbol::Semicolon)?;
                 Ok(Stmt::DerefAssign { ptr, expr })
             }
             Some(TokenKind::Keyword(Keyword::Return)) => {

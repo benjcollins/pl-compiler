@@ -97,7 +97,37 @@ impl InfixOp {
 
 impl<'s> fmt::Display for Expr<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        match self {
+            Expr::Int(val) => write!(f, "{}", val),
+            Expr::Infix { left, right, op } => write!(f, "({} {} {})", left, op, right),
+            Expr::Ref(expr) => write!(f, "&{}", expr),
+            Expr::Ident(ident) => write!(f, "{}", ident.as_str()),
+        }
+    }
+}
+
+impl<'s> fmt::Display for RefExpr<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RefExpr::Ident(ident) => write!(f, "{}", ident.as_str()),
+        }
+    }
+}
+
+impl fmt::Display for InfixOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InfixOp::Add => write!(f, "+"),
+            InfixOp::Subtract => write!(f, "-"),
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::I32 => write!(f, "i32"),
+        }
     }
 }
 
