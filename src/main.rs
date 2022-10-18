@@ -14,7 +14,8 @@ mod parser;
 mod test_lexer;
 mod test_parser;
 mod token;
-//mod unify;
+mod ty;
+mod unify;
 
 fn main() {
     let source = fs::read_to_string("example.txt").unwrap();
@@ -28,7 +29,7 @@ fn main() {
         }
     };
     let arena = Arena::new();
-//    println!("{:?}", func);
+    //    println!("{:?}", func);
     let cfg_func = cfg::create_cfg(func, &arena).unwrap();
     println!("{}", cfg_func);
 }

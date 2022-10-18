@@ -266,7 +266,10 @@ impl<'s> fmt::Display for Stmt<'s> {
 mod tests {
     use typed_arena::Arena;
 
-    use crate::{ast::{Func, Block, Stmt, If, Expr, Else}, idents::Ident};
+    use crate::{
+        ast::{Block, Else, Expr, Func, If, Stmt},
+        idents::Ident,
+    };
 
     use super::{create_cfg, Branch};
 
@@ -276,19 +279,19 @@ mod tests {
             name: Ident::new("f"),
             params: vec![],
             returns: None,
-            block: Some(Block(vec![
-                Stmt::If(If {
-                    cond: Expr::ident("x"),
-                    if_block: Block::empty(),
-                    else_block: Else::None,
-                })
-            ])),
+            block: Some(Block(vec![Stmt::If(If {
+                cond: Expr::ident("x"),
+                if_block: Block::empty(),
+                else_block: Else::None,
+            })])),
         };
         let arena = Arena::new();
         let cfg_func = create_cfg(func, &arena).unwrap();
         let entry = cfg_func.entry.get_block();
         match entry.branch {
-            Branch::Cond { if_true, if_false, .. } => {
+            Branch::Cond {
+                if_true, if_false, ..
+            } => {
                 let if_true_target = match if_true.get_block().branch {
                     Branch::Static(target) => target,
                     _ => panic!(),
@@ -301,6 +304,5 @@ mod tests {
             }
             _ => panic!(),
         }
-
     }
 }
