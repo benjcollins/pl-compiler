@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Block, Else, Expr, If, InfixOp, RefExpr, Stmt, Type, Func},
+    ast::{Block, Else, Expr, Func, If, InfixOp, RefExpr, Stmt, Type},
     idents::Idents,
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
@@ -40,6 +40,7 @@ pub enum Expected {
     Stmt,
     Expr,
     Func,
+    RefExpr,
 }
 
 impl<'s> Parser<'s> {
@@ -83,6 +84,15 @@ impl<'s> Parser<'s> {
             Err(Expected::Symbol(symbol))
         }
     }
+    pub fn parse_ref_expr(&mut self) -> Result<RefExpr<'s>, Expected> {
+        match self.peek() {
+            Some(TokenKind::Ident(ident)) => {
+                self.next();
+                Ok(RefExpr::Ident(self.idents.intern(ident)))
+            }
+            _ => Err(Expected::RefExpr),
+        }
+    }
     pub fn parse_expr(&mut self, prec: Prec) -> Result<Expr<'s>, Expected> {
         let mut left = match self.peek() {
             Some(TokenKind::Int(value)) => {
@@ -92,6 +102,10 @@ impl<'s> Parser<'s> {
             Some(TokenKind::Ident(ident)) => {
                 self.next();
                 Expr::Ident(self.idents.intern(ident))
+            }
+            Some(TokenKind::Symbol(Symbol::Ampersand)) => {
+                self.next();
+                Expr::Ref(self.parse_ref_expr()?)
             }
             Some(TokenKind::Symbol(Symbol::OpenBrace)) => {
                 self.next();
@@ -229,7 +243,12 @@ impl<'s> Parser<'s> {
                 } else {
                     Some(self.parse_block()?)
                 };
-                Ok(Func { name: self.idents.intern(name), params: vec![], returns: None, block })
+                Ok(Func {
+                    name: self.idents.intern(name),
+                    params: vec![],
+                    returns: None,
+                    block,
+                })
             }
             _ => Err(Expected::Func),
         }

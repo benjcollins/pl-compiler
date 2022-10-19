@@ -149,3 +149,11 @@ fn test_parse_func() {
         }
     )
 }
+
+#[test]
+fn test_parse_ref() {
+    let mut parser = Parser::new("&x");
+    let expr = parser.parse_expr(Prec::Bracket).unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(expr, Expr::Ref(RefExpr::ident("x")));
+}
