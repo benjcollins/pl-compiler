@@ -7,6 +7,7 @@ use typed_arena::Arena;
 use crate::parser::Parser;
 
 mod ast;
+mod ast_cfg;
 mod cfg;
 mod idents;
 mod lexer;
@@ -30,6 +31,6 @@ fn main() {
     };
     let arena = Arena::new();
     //    println!("{:?}", func);
-    let cfg_func = cfg::create_cfg(func, &arena).unwrap();
-    println!("{}", cfg_func);
+    let cfg_func = ast_cfg::create_cfg(func, &arena).unwrap();
+    println!("{}", cfg_func.entry);
 }
