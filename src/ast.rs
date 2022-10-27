@@ -2,18 +2,18 @@ use std::fmt;
 
 use strum::EnumIter;
 
-use crate::{idents::Ident, token::Symbol};
-
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<'s> {
+pub enum Expr {
     Int(u32),
     Infix {
-        left: Box<Expr<'s>>,
-        right: Box<Expr<'s>>,
+        left: Box<Expr>,
+        right: Box<Expr>,
         op: InfixOp,
     },
-    Ref(RefExpr<'s>),
-    Ident(Ident<'s>),
+    Deref(Box<Expr>),
+    Ref(RefExpr),
+    Ident(String),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, PartialEq)]
@@ -23,90 +23,100 @@ pub enum InfixOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum RefExpr<'s> {
-    Ident(Ident<'s>),
+pub enum RefExpr {
+    Ident(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    I32,
+    Ptr(Box<Type>),
+    Int(IntType),
+    Bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IntType {
+    pub size: IntSize,
+    pub signed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum IntSize {
+    B64,
+    B32,
+    B16,
+    B8,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt<'s> {
+pub enum Stmt {
     Decl {
-        name: Ident<'s>,
+        name: String,
         ty: Option<Type>,
-        expr: Option<Expr<'s>>,
+        expr: Option<Expr>,
     },
     Assign {
-        ref_expr: RefExpr<'s>,
-        expr: Expr<'s>,
+        ref_expr: RefExpr,
+        expr: Expr,
     },
     DerefAssign {
-        ptr: Expr<'s>,
-        expr: Expr<'s>,
+        ref_expr: Expr,
+        expr: Expr,
     },
-    If(If<'s>),
+    If(If),
     While {
-        cond: Expr<'s>,
-        block: Block<'s>,
+        cond: Expr,
+        block: Block,
     },
-    Return(Option<Expr<'s>>),
+    Return(Option<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct If<'s> {
-    pub cond: Expr<'s>,
-    pub if_block: Block<'s>,
-    pub else_block: Else<'s>,
+pub struct If {
+    pub cond: Expr,
+    pub if_block: Block,
+    pub else_block: Else,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Else<'s> {
-    Block(Block<'s>),
-    If(Box<If<'s>>),
+pub enum Else {
+    Block(Block),
+    If(Box<If>),
     None,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block<'s>(pub Vec<Stmt<'s>>);
+pub struct Block(pub Vec<Stmt>);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Param<'s> {
-    name: Ident<'s>,
+pub struct Param {
+    name: String,
     ty: Type,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Func<'s> {
-    pub name: Ident<'s>,
-    pub params: Vec<Param<'s>>,
+pub struct Func {
+    pub name: String,
+    pub params: Vec<Param>,
     pub returns: Option<Type>,
-    pub block: Option<Block<'s>>,
+    pub block: Option<Block>,
 }
 
-impl InfixOp {
-    pub fn symbol(&self) -> Symbol {
-        match self {
-            InfixOp::Add => Symbol::Plus,
-            InfixOp::Subtract => Symbol::Minus,
-        }
-    }
-}
-
-impl<'s> fmt::Display for Expr<'s> {
+impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expr::Bool(true) => write!(f, "true"),
+            Expr::Bool(false) => write!(f, "false"),
             Expr::Int(val) => write!(f, "{}", val),
             Expr::Infix { left, right, op } => write!(f, "({} {} {})", left, op, right),
             Expr::Ref(expr) => write!(f, "&{}", expr),
             Expr::Ident(ident) => write!(f, "{}", ident.as_str()),
+            Expr::Deref(expr) => write!(f, "*{}", expr),
         }
     }
 }
 
-impl<'s> fmt::Display for RefExpr<'s> {
+impl fmt::Display for RefExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RefExpr::Ident(ident) => write!(f, "{}", ident.as_str()),
@@ -126,32 +136,41 @@ impl fmt::Display for InfixOp {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::I32 => write!(f, "i32"),
+            Type::Ptr(ty) => write!(f, "*{}", ty),
+            Type::Int(int) => write!(f, "{}", int),
+            Type::Bool => write!(f, "bool"),
         }
     }
 }
 
-impl<'s> Expr<'s> {
-    pub fn infix(left: Expr<'s>, op: InfixOp, right: Expr<'s>) -> Expr<'s> {
+impl fmt::Display for IntType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let size = match self.size {
+            IntSize::B64 => "64",
+            IntSize::B32 => "32",
+            IntSize::B16 => "16",
+            IntSize::B8 => "8",
+        };
+        if self.signed {
+            write!(f, "i{}", size)
+        } else {
+            write!(f, "u{}", size)
+        }
+    }
+}
+
+impl Expr {
+    pub fn infix(left: Expr, op: InfixOp, right: Expr) -> Expr {
         Expr::Infix {
             left: Box::new(left),
             right: Box::new(right),
             op,
         }
     }
-    pub fn ident(s: &'s str) -> Expr<'s> {
-        Expr::Ident(Ident::new(s))
-    }
 }
 
-impl<'s> RefExpr<'s> {
-    pub fn ident(s: &'s str) -> RefExpr<'s> {
-        RefExpr::Ident(Ident::new(s))
-    }
-}
-
-impl<'s> Block<'s> {
-    pub fn empty() -> Block<'s> {
+impl Block {
+    pub fn empty() -> Block {
         Block(vec![])
     }
 }

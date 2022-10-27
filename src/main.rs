@@ -2,14 +2,13 @@
 
 use std::fs;
 
-use typed_arena::Arena;
+use compile_ast::compile_ast;
 
 use crate::parser::Parser;
 
 mod ast;
-mod ast_cfg;
-mod cfg;
-mod idents;
+mod compile_ast;
+mod ir;
 mod lexer;
 mod parser;
 mod test_lexer;
@@ -29,8 +28,8 @@ fn main() {
             return;
         }
     };
-    let arena = Arena::new();
-    //    println!("{:?}", func);
-    let cfg_func = ast_cfg::create_cfg(func, &arena).unwrap();
-    println!("{}", cfg_func.entry);
+    let ir_func = ir::Func::new();
+    let entry = compile_ast(&func, &ir_func);
+
+    println!("{}", entry)
 }

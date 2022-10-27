@@ -1,7 +1,6 @@
 #[cfg(test)]
 use crate::{
-    ast::{Block, Else, Expr, Func, If, InfixOp, RefExpr, Stmt, Type},
-    idents::Ident,
+    ast::{Block, Else, Expr, Func, If, InfixOp, IntSize, IntType, RefExpr, Stmt, Type},
     parser::{Parser, Prec},
 };
 
@@ -13,7 +12,7 @@ fn test_parse_expr() {
     assert_eq!(
         expr,
         Expr::infix(
-            Expr::ident("a"),
+            Expr::Ident("a".to_string()),
             InfixOp::Add,
             Expr::infix(Expr::Int(2), InfixOp::Subtract, Expr::Int(9),)
         )
@@ -28,8 +27,11 @@ fn test_parse_decl() {
     assert_eq!(
         stmt,
         Stmt::Decl {
-            name: Ident::new("x"),
-            ty: Some(Type::I32),
+            name: "x".to_string(),
+            ty: Some(Type::Int(IntType {
+                size: IntSize::B32,
+                signed: true
+            })),
             expr: Some(Expr::Int(2)),
         }
     );
@@ -43,7 +45,7 @@ fn test_parse_assign() {
     assert_eq!(
         stmt,
         Stmt::Assign {
-            ref_expr: RefExpr::ident("x"),
+            ref_expr: RefExpr::Ident("x".to_string()),
             expr: Expr::Int(4)
         }
     )
@@ -51,21 +53,21 @@ fn test_parse_assign() {
 
 #[test]
 fn test_parse_return() {
-    let mut parser = Parser::new("return x;");
+    let mut parser = Parser::new("return 4;");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
-    assert_eq!(stmt, Stmt::Return(Some(Expr::ident("x"))))
+    assert_eq!(stmt, Stmt::Return(Some(Expr::Int(4))))
 }
 
 #[test]
 fn test_parse_while() {
-    let mut parser = Parser::new("while a { }");
+    let mut parser = Parser::new("while 1 { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::While {
-            cond: Expr::ident("a"),
+            cond: Expr::Int(1),
             block: Block(vec![])
         }
     )
@@ -73,13 +75,13 @@ fn test_parse_while() {
 
 #[test]
 fn test_parse_if() {
-    let mut parser = Parser::new("if x { }");
+    let mut parser = Parser::new("if 1 { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::If(If {
-            cond: Expr::ident("x"),
+            cond: Expr::Int(1),
             if_block: Block(vec![]),
             else_block: Else::None,
         })
@@ -88,13 +90,13 @@ fn test_parse_if() {
 
 #[test]
 fn test_parse_if_else() {
-    let mut parser = Parser::new("if x { } else { }");
+    let mut parser = Parser::new("if 1 { } else { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::If(If {
-            cond: Expr::ident("x"),
+            cond: Expr::Int(1),
             if_block: Block(vec![]),
             else_block: Else::Block(Block(vec![]))
         })
@@ -109,10 +111,10 @@ fn test_parse_if_else_if() {
     assert_eq!(
         stmt,
         Stmt::If(If {
-            cond: Expr::ident("x"),
+            cond: Expr::Ident("x".to_string()),
             if_block: Block(vec![]),
             else_block: Else::If(Box::new(If {
-                cond: Expr::ident("y"),
+                cond: Expr::Ident("y".to_string()),
                 if_block: Block(vec![]),
                 else_block: Else::None
             }))
@@ -128,7 +130,7 @@ fn test_parse_deref_assign() {
     assert_eq!(
         stmt,
         Stmt::DerefAssign {
-            ptr: Expr::ident("x"),
+            ref_expr: Expr::Ident("x".to_string()),
             expr: Expr::Int(3)
         }
     )
@@ -142,7 +144,7 @@ fn test_parse_func() {
     assert_eq!(
         func,
         Func {
-            name: Ident::new("f"),
+            name: "f".to_string(),
             block: Some(Block::empty()),
             params: vec![],
             returns: None,
@@ -155,5 +157,5 @@ fn test_parse_ref() {
     let mut parser = Parser::new("&x");
     let expr = parser.parse_expr(Prec::Bracket).unwrap();
     assert!(parser.peek().is_none());
-    assert_eq!(expr, Expr::Ref(RefExpr::ident("x")));
+    assert_eq!(expr, Expr::Ref(RefExpr::Ident("x".to_string())));
 }
