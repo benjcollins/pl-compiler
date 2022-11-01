@@ -4,10 +4,7 @@ use std::fs;
 
 use compile_ast::compile_ast;
 
-use crate::{
-    parser::Parser,
-    region::{check_func, propagate_regions, Regions},
-};
+use crate::{parser::Parser, region::check_func};
 
 mod ast;
 mod compile_ast;

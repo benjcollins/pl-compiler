@@ -1,7 +1,9 @@
-use crate::ast::Param;
 #[cfg(test)]
 use crate::{
-    ast::{Block, Else, Expr, Func, If, InfixOp, IntSize, IntType, RefExpr, Stmt, Type},
+    ast::{
+        Block, Else, Expr, Func, FuncCall, If, InfixOp, IntSize, IntType, Param, RefExpr, Stmt,
+        Type,
+    },
     parser::{Parser, Prec},
 };
 
@@ -181,4 +183,49 @@ fn test_parse_param() {
             returns: None,
         }
     );
+}
+
+#[test]
+fn test_parse_params() {
+    let mut parser = Parser::new("func f(x: i32, y: u32) { }");
+    let func = parser.parse_func().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        func,
+        Func {
+            name: "f".to_string(),
+            block: Some(Block::empty()),
+            params: vec![
+                Param {
+                    name: "x".to_string(),
+                    ty: Type::Int(IntType {
+                        signed: true,
+                        size: IntSize::B32
+                    })
+                },
+                Param {
+                    name: "y".to_string(),
+                    ty: Type::Int(IntType {
+                        signed: false,
+                        size: IntSize::B32
+                    })
+                }
+            ],
+            returns: None,
+        }
+    );
+}
+
+#[test]
+fn test_parse_call() {
+    let mut parser = Parser::new("f(5, 2)");
+    let expr = parser.parse_expr(Prec::Bracket).unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        expr,
+        Expr::Call(FuncCall {
+            name: "f".to_string(),
+            args: vec![Expr::Int(5), Expr::Int(2),]
+        })
+    )
 }

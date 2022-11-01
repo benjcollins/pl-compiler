@@ -67,9 +67,7 @@ impl<'f> Branch<'f> {
         match self {
             Branch::Static(a) => IterBranchTargets::Static(*a),
             Branch::Cond {
-                cond,
-                if_true,
-                if_false,
+                if_true, if_false, ..
             } => IterBranchTargets::Cond(*if_true, *if_false),
             Branch::Return(_) => IterBranchTargets::None,
         }

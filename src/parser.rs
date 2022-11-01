@@ -1,7 +1,10 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Block, Else, Expr, Func, If, InfixOp, IntSize, IntType, Param, RefExpr, Stmt, Type},
+    ast::{
+        Block, Else, Expr, Func, FuncCall, If, InfixOp, IntSize, IntType, Param, RefExpr, Stmt,
+        Type,
+    },
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
 };
@@ -105,7 +108,17 @@ impl<'s> Parser<'s> {
             }
             Some(TokenKind::Ident(ident)) => {
                 self.next();
-                Expr::Ident(ident.to_string())
+                if self.eat_symbol(Symbol::OpenBrace) {
+                    let args = self.parse_list(Symbol::Comma, Symbol::CloseBrace, |parser| {
+                        parser.parse_expr(Prec::Bracket)
+                    })?;
+                    Expr::Call(FuncCall {
+                        name: ident.to_string(),
+                        args,
+                    })
+                } else {
+                    Expr::Ident(ident.to_string())
+                }
             }
             Some(TokenKind::Symbol(Symbol::Ampersand)) => {
                 self.next();
