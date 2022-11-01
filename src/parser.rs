@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Block, Else, Expr, Func, If, InfixOp, IntSize, IntType, RefExpr, Stmt, Type},
+    ast::{Block, Else, Expr, Func, If, InfixOp, IntSize, IntType, Param, RefExpr, Stmt, Type},
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
 };
@@ -261,7 +261,35 @@ impl<'s> Parser<'s> {
         self.next();
         Ok(Block(stmts))
     }
-
+    fn parse_list<T>(
+        &mut self,
+        sep: Symbol,
+        term: Symbol,
+        item: impl Fn(&mut Parser) -> Result<T, Expected>,
+    ) -> Result<Vec<T>, Expected> {
+        let mut items = vec![];
+        if self.eat_symbol(term) {
+            return Ok(items);
+        }
+        loop {
+            items.push(item(self)?);
+            if !self.eat_symbol(sep) {
+                break;
+            }
+        }
+        self.expect_symbol(term)?;
+        Ok(items)
+    }
+    fn parse_param(&mut self) -> Result<Param, Expected> {
+        let name = match self.peek() {
+            Some(TokenKind::Ident(name)) => name.to_string(),
+            _ => return Err(Expected::Ident),
+        };
+        self.next();
+        self.expect_symbol(Symbol::Colon)?;
+        let ty = self.parse_type()?;
+        Ok(Param { name, ty })
+    }
     pub fn parse_func(&mut self) -> Result<Func, Expected> {
         match self.peek() {
             Some(TokenKind::Keyword(Keyword::Func)) => {
@@ -272,7 +300,9 @@ impl<'s> Parser<'s> {
                 };
                 self.next();
                 self.expect_symbol(Symbol::OpenBrace)?;
-                self.expect_symbol(Symbol::CloseBrace)?;
+                let params = self.parse_list(Symbol::Comma, Symbol::CloseBrace, |parser| {
+                    parser.parse_param()
+                })?;
                 let block = if self.eat_symbol(Symbol::Semicolon) {
                     None
                 } else {
@@ -280,7 +310,7 @@ impl<'s> Parser<'s> {
                 };
                 Ok(Func {
                     name: name.to_string(),
-                    params: vec![],
+                    params,
                     returns: None,
                     block,
                 })

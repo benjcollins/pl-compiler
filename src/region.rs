@@ -65,8 +65,10 @@ impl<'f> Regions<'f> {
 pub fn check_func<'f>(func: &'f ir::Func<'f>, entry: ir::BlockRef<'f>) {
     let mut map = HashMap::new();
     let mut queue = vec![];
+
     queue.push(entry);
     map.insert(entry, Regions::new());
+
     loop {
         let block = match queue.pop() {
             Some(block) => block,

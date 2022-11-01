@@ -90,8 +90,8 @@ pub struct Block(pub Vec<Stmt>);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
-    name: String,
-    ty: Type,
+    pub name: String,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone, PartialEq)]

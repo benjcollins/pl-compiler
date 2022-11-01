@@ -27,6 +27,7 @@ pub enum Symbol {
     CloseCurlyBrace,
     Asterisk,
     Ampersand,
+    Comma,
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, PartialEq)]
@@ -66,6 +67,7 @@ impl Symbol {
             Symbol::CloseCurlyBrace => "}",
             Symbol::Asterisk => "*",
             Symbol::Ampersand => "&",
+            Symbol::Comma => ",",
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::ast::Param;
 #[cfg(test)]
 use crate::{
     ast::{Block, Else, Expr, Func, If, InfixOp, IntSize, IntType, RefExpr, Stmt, Type},
@@ -61,13 +62,13 @@ fn test_parse_return() {
 
 #[test]
 fn test_parse_while() {
-    let mut parser = Parser::new("while 1 { }");
+    let mut parser = Parser::new("while true { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::While {
-            cond: Expr::Int(1),
+            cond: Expr::Bool(true),
             block: Block(vec![])
         }
     )
@@ -75,13 +76,13 @@ fn test_parse_while() {
 
 #[test]
 fn test_parse_if() {
-    let mut parser = Parser::new("if 1 { }");
+    let mut parser = Parser::new("if true { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::If(If {
-            cond: Expr::Int(1),
+            cond: Expr::Bool(true),
             if_block: Block(vec![]),
             else_block: Else::None,
         })
@@ -90,13 +91,13 @@ fn test_parse_if() {
 
 #[test]
 fn test_parse_if_else() {
-    let mut parser = Parser::new("if 1 { } else { }");
+    let mut parser = Parser::new("if true { } else { }");
     let stmt = parser.parse_stmt().unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(
         stmt,
         Stmt::If(If {
-            cond: Expr::Int(1),
+            cond: Expr::Bool(true),
             if_block: Block(vec![]),
             else_block: Else::Block(Block(vec![]))
         })
@@ -158,4 +159,26 @@ fn test_parse_ref() {
     let expr = parser.parse_expr(Prec::Bracket).unwrap();
     assert!(parser.peek().is_none());
     assert_eq!(expr, Expr::Ref(RefExpr::Ident("x".to_string())));
+}
+
+#[test]
+fn test_parse_param() {
+    let mut parser = Parser::new("func f(x: i32) { }");
+    let func = parser.parse_func().unwrap();
+    assert!(parser.peek().is_none());
+    assert_eq!(
+        func,
+        Func {
+            name: "f".to_string(),
+            block: Some(Block::empty()),
+            params: vec![Param {
+                name: "x".to_string(),
+                ty: Type::Int(IntType {
+                    signed: true,
+                    size: IntSize::B32
+                })
+            }],
+            returns: None,
+        }
+    );
 }

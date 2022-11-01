@@ -1,6 +1,1 @@
-func f() {
-    var x: i32;
-    while true {
-        x = x + 1;
-    }
-}
+func f(x: i32) {}
