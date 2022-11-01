@@ -41,32 +41,40 @@ pub enum Branch<'f> {
     Return(Option<Expr<'f>>),
 }
 
-// pub enum IterBranchTargets<'f> {
-//     None,
-//     One
-// }
+#[derive(Clone, Copy)]
+pub enum IterBranchTargets<'f> {
+    Cond(BlockRef<'f>, BlockRef<'f>),
+    Static(BlockRef<'f>),
+    None,
+}
 
-// impl<'f> Iterator for IterBranchTargets<'f> {
-//     type Item = BlockRef<'f>;
+impl<'f> Iterator for IterBranchTargets<'f> {
+    type Item = BlockRef<'f>;
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let (branch, ret) = match &self.0 {
-//             Branch::Static(target) => (Branch::Return(None), Some(*target)),
-//             Branch::Cond {
-//                 if_true, if_false, ..
-//             } => (Branch::Static(*if_false), Some(*if_true)),
-//             Branch::Return(_) => (Branch::Return(None), None),
-//         };
-//         self.0 = branch;
-//         ret
-//     }
-// }
+    fn next(&mut self) -> Option<Self::Item> {
+        let (next, target) = match self {
+            IterBranchTargets::Cond(a, b) => (IterBranchTargets::Static(*a), Some(*b)),
+            IterBranchTargets::Static(a) => (IterBranchTargets::None, Some(*a)),
+            IterBranchTargets::None => (IterBranchTargets::None, None),
+        };
+        *self = next;
+        target
+    }
+}
 
-// impl<'f> Branch<'f> {
-//     pub fn iter_branch_targets(&self) -> IterBranchTargets<'f> {
-//         IterBranchTargets(self.clone())
-//     }
-// }
+impl<'f> Branch<'f> {
+    pub fn iter_branch_targets(&self) -> IterBranchTargets<'f> {
+        match self {
+            Branch::Static(a) => IterBranchTargets::Static(*a),
+            Branch::Cond {
+                cond,
+                if_true,
+                if_false,
+            } => IterBranchTargets::Cond(*if_true, *if_false),
+            Branch::Return(_) => IterBranchTargets::None,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Expr<'f> {

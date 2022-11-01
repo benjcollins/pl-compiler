@@ -5,7 +5,7 @@ use std::{
 
 use crate::{ir, ty::Type};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Region {
     Local(bool),
     Ptr(HashSet<RegionId>),
@@ -62,21 +62,48 @@ impl<'f> Regions<'f> {
     }
 }
 
-// pub fn check_func<'f>(func: &'f ir::Func<'f>, entry: ir::BlockRef<'f>) {
-//     let map = HashMap::new();
-//     let mut queue = vec![];
-//     queue.push((entry, Regions::new()));
-//     loop {
-//         let (block, regions) = match queue.pop() {
-//             Some(top) => top,
-//             None => break,
-//         };
-//         for target in block.get().branch.iter_branch_targets() {
-//             map.get(target).unwrap()
-//         }
-//         let final_regions = propagate_regions(block, &regions);
-//     }
-// }
+pub fn check_func<'f>(func: &'f ir::Func<'f>, entry: ir::BlockRef<'f>) {
+    let mut map = HashMap::new();
+    let mut queue = vec![];
+    queue.push(entry);
+    map.insert(entry, Regions::new());
+    loop {
+        let block = match queue.pop() {
+            Some(block) => block,
+            None => break,
+        };
+        let new_regions = propagate_regions(block, map.get(&block).unwrap());
+        println!("{:?}", new_regions);
+        for target in block.get().branch.iter_branch_targets() {
+            if map
+                .get(&target)
+                .map_or(true, |past| past.regions != new_regions.regions)
+            {
+                queue.push(target);
+                map.insert(
+                    target,
+                    match map.get(&target) {
+                        Some(last_regions) => {
+                            if last_regions.regions.len() != new_regions.regions.len() {
+                                panic!()
+                            }
+                            Regions {
+                                scope: new_regions.scope.clone(),
+                                regions: last_regions
+                                    .regions
+                                    .iter()
+                                    .zip(new_regions.regions.iter())
+                                    .map(|(last, new)| last.combine(new))
+                                    .collect(),
+                            }
+                        }
+                        None => new_regions.clone(),
+                    },
+                );
+            }
+        }
+    }
+}
 
 pub fn propagate_regions<'f>(
     block: ir::BlockRef<'f>,
@@ -137,8 +164,15 @@ fn get_expr_region<'f>(expr: &ir::Expr<'f>, regions: &Regions) -> Region {
             let left = get_expr_region(left, regions);
             let right = get_expr_region(right, regions);
             match (left, right) {
-                (Region::Local(true), Region::Local(true)) => Region::Local(true),
-                _ => panic!("cannot operate on undefined data"),
+                (Region::Local(a), Region::Local(b)) => {
+                    if a && b {
+                        Region::Local(true)
+                    } else {
+                        println!("invalid operation!");
+                        Region::Local(false)
+                    }
+                }
+                _ => panic!(),
             }
         }
         ir::Expr::Bool(_) | ir::Expr::Int(_) => Region::Local(true),

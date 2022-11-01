@@ -1,7 +1,6 @@
 func f() {
-    var x;
-    var y: *i32 = &x;
-    // *y = 2;
-
-    var z = *y + 1;
+    var x: i32;
+    while true {
+        x = x + 1;
+    }
 }

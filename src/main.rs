@@ -6,7 +6,7 @@ use compile_ast::compile_ast;
 
 use crate::{
     parser::Parser,
-    region::{propagate_regions, Regions},
+    region::{check_func, propagate_regions, Regions},
 };
 
 mod ast;
@@ -37,7 +37,9 @@ fn main() {
 
     println!("{}", entry);
 
-    let regions = propagate_regions(entry, &Regions::new());
+    check_func(&ir_func, entry);
 
-    println!("{:?}", regions);
+    // let regions = propagate_regions(entry, &Regions::new());
+
+    // println!("{:?}", regions);
 }
