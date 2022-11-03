@@ -21,7 +21,7 @@ mod unify;
 fn main() {
     let source = fs::read_to_string("example.txt").unwrap();
     let mut parser = Parser::new(&source);
-    let func = match parser.parse_func() {
+    let func_ast = match parser.parse_func() {
         Ok(func) => func,
         Err(err) => {
             println!("{:?}", err);
@@ -29,12 +29,11 @@ fn main() {
             return;
         }
     };
-    let ir_func = ir::Func::new();
-    let entry = compile_func(&func, &ir_func);
+    let func_ir = compile_func(&func_ast);
 
-    println!("{}", entry);
+    println!("{}", func_ir.entry);
 
-    check_func(&ir_func, entry);
+    check_func(&func_ir);
 
     // let regions = propagate_regions(entry, &Regions::new());
 

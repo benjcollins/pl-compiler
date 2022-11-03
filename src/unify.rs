@@ -46,7 +46,7 @@ impl<T: Unify + Clone + fmt::Debug> UnifyVarRef<T> {
                 return;
             }
             (UnifyVar::Is(a_ty), UnifyVar::Is(b_ty)) => {
-                if ptr::eq(a_ty, b_ty) {
+                if Rc::ptr_eq(&self.0, &other.0) {
                     return;
                 }
                 a_ty.unify(b_ty).unwrap()

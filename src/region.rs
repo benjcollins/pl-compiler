@@ -23,9 +23,9 @@ fn create_region(ty: &Type) -> Region {
 }
 
 #[derive(Debug, Clone)]
-pub struct Regions<'f> {
+pub struct Regions {
     regions: Vec<Region>,
-    scope: HashMap<&'f str, RegionId>,
+    scope: HashMap<String, RegionId>,
 }
 
 impl Region {
@@ -42,8 +42,8 @@ impl Region {
     }
 }
 
-impl<'f> Regions<'f> {
-    pub fn new() -> Regions<'f> {
+impl Regions {
+    pub fn new() -> Regions {
         Regions {
             regions: vec![],
             scope: HashMap::new(),
@@ -62,28 +62,28 @@ impl<'f> Regions<'f> {
     }
 }
 
-pub fn check_func<'f>(func: &'f ir::Func<'f>, entry: ir::BlockRef<'f>) {
+pub fn check_func(func: &ir::Func) {
     let mut map = HashMap::new();
     let mut queue = vec![];
 
-    queue.push(entry);
-    map.insert(entry, Regions::new());
+    queue.push(func.entry.clone());
+    map.insert(func.entry.clone(), Regions::new());
 
     loop {
         let block = match queue.pop() {
             Some(block) => block,
             None => break,
         };
-        let new_regions = propagate_regions(block, map.get(&block).unwrap());
+        let new_regions = propagate_regions(&block, map.get(&block).unwrap());
         println!("{:?}", new_regions);
-        for target in block.get().branch.iter_branch_targets() {
+        for target in block.upgrade().get().branch.iter_branch_targets() {
             if map
                 .get(&target)
                 .map_or(true, |past| past.regions != new_regions.regions)
             {
-                queue.push(target);
+                queue.push(target.clone());
                 map.insert(
-                    target,
+                    target.clone(),
                     match map.get(&target) {
                         Some(last_regions) => {
                             if last_regions.regions.len() != new_regions.regions.len() {
@@ -107,16 +107,13 @@ pub fn check_func<'f>(func: &'f ir::Func<'f>, entry: ir::BlockRef<'f>) {
     }
 }
 
-pub fn propagate_regions<'f>(
-    block: ir::BlockRef<'f>,
-    initial_regions: &Regions<'f>,
-) -> Regions<'f> {
-    let mut regions: Regions = initial_regions.clone();
-    for stmt in &block.get().stmts {
+pub fn propagate_regions(block: &ir::WeakBlockRef, initial_regions: &Regions) -> Regions {
+    let mut regions = initial_regions.clone();
+    for stmt in &block.upgrade().get().stmts {
         match stmt {
             ir::Stmt::Decl(var) => {
                 let region = regions.new_region(var.ty.apply(create_region));
-                regions.scope.insert(var.name.as_str(), region);
+                regions.scope.insert(var.name.clone(), region);
             }
             ir::Stmt::Drop(var) => {
                 regions.scope.remove(var.name.as_str());
@@ -130,7 +127,7 @@ pub fn propagate_regions<'f>(
     regions
 }
 
-fn assign_region_to<'f>(ref_expr: &ir::Expr<'f>, region: Region, regions: &mut Regions) {
+fn assign_region_to<'f>(ref_expr: &ir::Expr, region: Region, regions: &mut Regions) {
     match ref_expr {
         ir::Expr::Bool(_) | ir::Expr::Int(_) | ir::Expr::Infix { .. } => panic!(),
         ir::Expr::Ref(ref_expr) => match ref_expr {
@@ -160,7 +157,7 @@ fn assign_region_to<'f>(ref_expr: &ir::Expr<'f>, region: Region, regions: &mut R
     }
 }
 
-fn get_expr_region<'f>(expr: &ir::Expr<'f>, regions: &Regions) -> Region {
+fn get_expr_region<'f>(expr: &ir::Expr, regions: &Regions) -> Region {
     match expr {
         ir::Expr::Infix { left, right, .. } => {
             let left = get_expr_region(left, regions);
