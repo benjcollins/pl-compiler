@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, ptr, rc::Rc};
+use std::{cell::RefCell, fmt, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnifyVar<T> {

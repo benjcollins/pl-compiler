@@ -106,7 +106,7 @@ pub struct Func {
     pub name: String,
     pub params: Vec<Param>,
     pub returns: Option<Type>,
-    pub block: Option<Block>,
+    pub block: Block,
 }
 
 pub struct Program {

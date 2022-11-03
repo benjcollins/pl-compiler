@@ -5,20 +5,32 @@ use crate::{
     ty::{Type, TypeVarRef},
 };
 
-struct Compiler<'s> {
-    scope: HashMap<&'s str, Rc<ir::Var>>,
+struct Compiler<'a> {
+    scope: HashMap<&'a str, Rc<ir::Var>>,
     block: ir::WeakBlockRef,
     func: ir::Func,
+    program_ast: &'a ast::Program,
+    func_ast: &'a ast::Func,
 }
 
-pub fn compile_func<'f>(ast_func: &ast::Func) -> ir::Func {
-    let func = ir::Func::new();
+pub fn compile_program(program_ast: &ast::Program) -> ir::Program {
+    let mut funcs = vec![];
+    for func in &program_ast.funcs {
+        funcs.push(compile_func(func, program_ast))
+    }
+    ir::Program { funcs }
+}
+
+pub fn compile_func(func_ast: &ast::Func, program_ast: &ast::Program) -> ir::Func {
+    let func = ir::Func::new(func_ast.name.to_string());
     let mut compiler = Compiler {
         scope: HashMap::new(),
         block: func.entry.clone(),
         func,
+        program_ast,
+        func_ast,
     };
-    compiler.compile_block(&ast_func.block.as_ref().unwrap());
+    compiler.compile_block(&func_ast.block);
     compiler.func
 }
 
@@ -102,8 +114,20 @@ impl<'s> Compiler<'s> {
                     self.block = exit_block;
                 }
                 ast::Stmt::Return(expr) => {
-                    self.block.upgrade().get_mut().branch =
-                        ir::Branch::Return(expr.as_ref().map(|expr| self.compile_expr(&expr).0))
+                    let expr = expr.as_ref().map(|expr| {
+                        let (expr, ty) = self.compile_expr(&expr);
+                        ty.unify_ty(
+                            self.compile_ast_ty(
+                                &self
+                                    .func_ast
+                                    .returns
+                                    .as_ref()
+                                    .expect("func signature does not specify return type"),
+                            ),
+                        );
+                        expr
+                    });
+                    self.block.upgrade().get_mut().branch = ir::Branch::Return(expr);
                 }
             }
         }
@@ -144,7 +168,7 @@ impl<'s> Compiler<'s> {
 
         self.block = exit_block;
     }
-    fn compile_expr(&self, expr: &ast::Expr) -> (ir::Expr, TypeVarRef) {
+    fn compile_expr(&mut self, expr: &ast::Expr) -> (ir::Expr, TypeVarRef) {
         match expr {
             ast::Expr::Bool(value) => (ir::Expr::Bool(*value), TypeVarRef::new(Type::Bool)),
             ast::Expr::Int(value) => (ir::Expr::Int(*value), TypeVarRef::new(Type::AnyInt)),
@@ -175,7 +199,41 @@ impl<'s> Compiler<'s> {
                 expr_ty.unify_ty(Type::Ptr(any.clone()));
                 (ir::Expr::Deref(Box::new(expr)), any)
             }
-            ast::Expr::Call(_) => todo!(),
+            ast::Expr::Call(func_call) => {
+                let func = self
+                    .program_ast
+                    .funcs
+                    .iter()
+                    .find(|func| func.name == func_call.name)
+                    .expect("called func does not exist");
+                if func_call.args.len() != func.params.len() {
+                    panic!("wrong number of arguments in func call");
+                }
+                let mut args = vec![];
+                for (arg, param) in func_call.args.iter().zip(&func.params) {
+                    let (arg_expr, arg_ty) = self.compile_expr(arg);
+                    args.push(arg_expr);
+                    arg_ty.unify_ty(self.compile_ast_ty(&param.ty));
+                }
+                let return_block = self.func.new_block();
+                self.block.upgrade().get_mut().branch = ir::Branch::Call {
+                    name: func.name.clone(),
+                    args,
+                    return_to: return_block.clone(),
+                };
+                self.block = return_block;
+                (
+                    ir::Expr::Returned,
+                    TypeVarRef::new(
+                        self.compile_ast_ty(
+                            &func
+                                .returns
+                                .as_ref()
+                                .expect("func does not return anything"),
+                        ),
+                    ),
+                )
+            }
         }
     }
     fn compile_ref_expr(&self, ref_expr: &ast::RefExpr) -> (ir::RefExpr, TypeVarRef) {

@@ -2,16 +2,14 @@
 
 use std::fs;
 
-use compile_ast::compile_func;
-
-use crate::{parser::Parser, region::check_func};
+use crate::{compile_ast::compile_program, parser::Parser};
 
 mod ast;
 mod compile_ast;
 mod ir;
 mod lexer;
 mod parser;
-mod region;
+// mod region;
 mod test_lexer;
 mod test_parser;
 mod token;
@@ -21,7 +19,7 @@ mod unify;
 fn main() {
     let source = fs::read_to_string("example.txt").unwrap();
     let mut parser = Parser::new(&source);
-    let func_ast = match parser.parse_func() {
+    let program_ast = match parser.parse_program() {
         Ok(func) => func,
         Err(err) => {
             println!("{:?}", err);
@@ -29,11 +27,11 @@ fn main() {
             return;
         }
     };
-    let func_ir = compile_func(&func_ast);
+    let program_ir = compile_program(&program_ast);
 
-    println!("{}", func_ir.entry);
+    println!("{}", program_ir);
 
-    check_func(&func_ir);
+    // check_func(&func_ir);
 
     // let regions = propagate_regions(entry, &Regions::new());
 

@@ -148,7 +148,7 @@ fn test_parse_func() {
         func,
         Func {
             name: "f".to_string(),
-            block: Some(Block::empty()),
+            block: Block::empty(),
             params: vec![],
             returns: None,
         }
@@ -172,7 +172,7 @@ fn test_parse_param() {
         func,
         Func {
             name: "f".to_string(),
-            block: Some(Block::empty()),
+            block: Block::empty(),
             params: vec![Param {
                 name: "x".to_string(),
                 ty: Type::Int(IntType {
@@ -194,7 +194,7 @@ fn test_parse_params() {
         func,
         Func {
             name: "f".to_string(),
-            block: Some(Block::empty()),
+            block: Block::empty(),
             params: vec![
                 Param {
                     name: "x".to_string(),
