@@ -2,28 +2,27 @@ use std::fmt;
 
 use crate::{
     ast::IntType,
-    unify::{Unify, UnifyVarRef, UnifyVars},
+    unify::{Unify, UnifyVarRef},
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type<'v> {
+pub enum Type {
     Int(IntType),
     Bool,
-    Ptr(TypeVarRef<'v>),
+    Ptr(TypeVarRef),
     AnyInt,
     Any,
 }
 
-impl<'v> Unify<'v> for Type<'v> {
-    fn unify(
-        &self,
-        other: &Self,
-        types: &'v UnifyVars<Type<'v>>,
-    ) -> Result<Type<'v>, (Type<'v>, Type<'v>)> {
+impl Unify for Type {
+    fn unify(&self, other: &Self) -> Result<Type, (Type, Type)> {
         match (self, other) {
             (Type::Any, a) | (a, Type::Any) => Ok(a.clone()),
             (Type::Bool, Type::Bool) => Ok(Type::Bool),
-            (Type::Ptr(a), Type::Ptr(b)) => Ok(Type::Ptr(types.unify(*a, *b))),
+            (Type::Ptr(a), Type::Ptr(b)) => {
+                a.unify_var(b);
+                Ok(Type::Ptr(a.clone()))
+            }
             (Type::Int(a), Type::Int(b)) if a == b => Ok(Type::Int(*a)),
             (Type::AnyInt, Type::Int(a)) | (Type::Int(a), Type::AnyInt) => Ok(Type::Int(*a)),
             (Type::AnyInt, Type::AnyInt) => Ok(Type::AnyInt),
@@ -32,7 +31,7 @@ impl<'v> Unify<'v> for Type<'v> {
     }
 }
 
-impl fmt::Display for Type<'_> {
+impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Type::Int(ty) => write!(f, "{}", ty),
@@ -44,14 +43,13 @@ impl fmt::Display for Type<'_> {
     }
 }
 
-pub type TypeVarRef<'v> = UnifyVarRef<'v, Type<'v>>;
-pub type TypeVars<'v> = UnifyVars<'v, Type<'v>>;
+pub type TypeVarRef = UnifyVarRef<Type>;
 
 #[cfg(test)]
 mod tests {
     use crate::{
         ast::{IntSize, IntType},
-        unify::UnifyVars,
+        ty::TypeVarRef,
     };
 
     use super::Type;
@@ -63,19 +61,17 @@ mod tests {
 
     #[test]
     fn test_unify_int() {
-        let unify_vars = UnifyVars::new();
-        let a = unify_vars.alloc_type_var(Type::Any);
-        let b = unify_vars.alloc_type_var(Type::Int(I32));
-        unify_vars.unify(a, b);
+        let a = TypeVarRef::new(Type::Any);
+        let b = TypeVarRef::new(Type::Int(I32));
+        a.unify_var(&b);
         assert_eq!(a.get_ty(), Type::Int(I32));
         assert_eq!(a.get_ty(), Type::Int(I32));
     }
     #[test]
     fn test_unify_ref_bool() {
-        let unify_vars = UnifyVars::new();
-        let a = unify_vars.alloc_type_var(Type::Ptr(unify_vars.alloc_type_var(Type::Bool)));
-        let b = unify_vars.alloc_type_var(Type::Ptr(unify_vars.alloc_type_var(Type::Any)));
-        unify_vars.unify(a, b);
+        let a = TypeVarRef::new(Type::Ptr(TypeVarRef::new(Type::Bool)));
+        let b = TypeVarRef::new(Type::Ptr(TypeVarRef::new(Type::Any)));
+        a.unify_var(&b);
         assert_eq!(a.get_ty(), b.get_ty());
     }
 }

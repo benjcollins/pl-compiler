@@ -109,6 +109,10 @@ pub struct Func {
     pub block: Option<Block>,
 }
 
+pub struct Program {
+    pub funcs: Vec<Func>,
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

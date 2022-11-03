@@ -6,27 +6,22 @@ use std::{
 
 use typed_arena::Arena;
 
-use crate::{
-    ast::InfixOp,
-    ty::{TypeVarRef, TypeVars},
-    unify::UnifyVars,
-};
+use crate::{ast::InfixOp, ty::TypeVarRef};
 
 pub struct Block<'c> {
     pub stmts: Vec<Stmt<'c>>,
     pub branch: Branch<'c>,
 }
 
-pub struct Func<'c> {
-    pub blocks: Arena<RefCell<Block<'c>>>,
-    pub vars: Arena<Variable<'c>>,
-    pub types: TypeVars<'c>,
+pub struct Func<'f> {
+    pub blocks: Arena<RefCell<Block<'f>>>,
+    pub vars: Arena<Variable>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Stmt<'f> {
-    Decl(&'f Variable<'f>),
-    Drop(&'f Variable<'f>),
+    Decl(&'f Variable),
+    Drop(&'f Variable),
     Assign { ref_expr: Expr<'f>, expr: Expr<'f> },
 }
 
@@ -85,18 +80,18 @@ pub enum Expr<'f> {
     },
     Ref(RefExpr<'f>),
     Deref(Box<Expr<'f>>),
-    Var(&'f Variable<'f>),
+    Var(&'f Variable),
 }
 
 #[derive(Debug, Clone)]
 pub enum RefExpr<'f> {
-    Var(&'f Variable<'f>),
+    Var(&'f Variable),
 }
 
 #[derive(Debug)]
-pub struct Variable<'f> {
+pub struct Variable {
     pub name: String,
-    pub ty: TypeVarRef<'f>,
+    pub ty: TypeVarRef,
 }
 
 #[derive(Clone)]
@@ -131,7 +126,6 @@ impl<'f> Func<'f> {
         Func {
             blocks: Arena::new(),
             vars: Arena::new(),
-            types: UnifyVars::new(),
         }
     }
     pub fn alloc_block(&'f self) -> BlockRef<'f> {

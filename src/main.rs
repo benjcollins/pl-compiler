@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use compile_ast::compile_ast;
+use compile_ast::compile_func;
 
 use crate::{parser::Parser, region::check_func};
 
@@ -30,7 +30,7 @@ fn main() {
         }
     };
     let ir_func = ir::Func::new();
-    let entry = compile_ast(&func, &ir_func);
+    let entry = compile_func(&func, &ir_func);
 
     println!("{}", entry);
 

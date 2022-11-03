@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use crate::{
     ast::{
         Block, Else, Expr, Func, FuncCall, If, InfixOp, IntSize, IntType, Param, RefExpr, Stmt,
-        Type,
+        Type, Program,
     },
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
@@ -331,4 +331,18 @@ impl<'s> Parser<'s> {
             _ => Err(Expected::Func),
         }
     }
+    pub fn parse_program(&mut self) -> Result<Program, Expected> {
+        let mut funcs = vec![];
+        while self.peek().is_some() {
+            funcs.push(self.parse_func()?);
+        }
+        Ok(Program { funcs })
+    }
 }
+
+// struct ParseError<'s> {
+//     expected: Expected,
+//     got: Option<Token<'s>>,
+// }
+
+// fn parse_program<'s>(source: &str) -> Result<Func, ParseError<'s>> {}
