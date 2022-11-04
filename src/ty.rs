@@ -64,14 +64,13 @@ mod tests {
         let a = TypeVarRef::new(Type::Any);
         let b = TypeVarRef::new(Type::Int(I32));
         a.unify_var(&b);
-        assert_eq!(a.get_ty(), Type::Int(I32));
-        assert_eq!(a.get_ty(), Type::Int(I32));
+        assert_eq!(a, b);
     }
     #[test]
     fn test_unify_ref_bool() {
         let a = TypeVarRef::new(Type::Ptr(TypeVarRef::new(Type::Bool)));
         let b = TypeVarRef::new(Type::Ptr(TypeVarRef::new(Type::Any)));
         a.unify_var(&b);
-        assert_eq!(a.get_ty(), b.get_ty());
+        assert_eq!(a, b);
     }
 }

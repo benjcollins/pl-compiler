@@ -29,29 +29,34 @@ impl<T: Unify + Clone + fmt::Debug> UnifyVarRef<T> {
             UnifyVar::Is(ty) => f(ty),
         }
     }
-    pub fn get_ty(&self) -> T {
-        self.apply(|a| a.clone())
-    }
     pub fn new(ty: T) -> UnifyVarRef<T> {
         UnifyVarRef(Rc::new(RefCell::new(UnifyVar::Is(ty))))
     }
     pub fn unify_var(&self, other: &UnifyVarRef<T>) {
-        let ty = match (&*self.0.borrow(), &*other.0.borrow()) {
+        let a = self.0.borrow();
+        let b = other.0.borrow();
+        let ty = match (&*a, &*b) {
             (UnifyVar::Equal(ty_var), _) => {
-                ty_var.unify_var(other);
+                let ty_var_temp = ty_var.clone();
+                drop(a);
+                drop(b);
+                ty_var_temp.unify_var(other);
                 return;
             }
             (_, UnifyVar::Equal(ty_var)) => {
-                ty_var.unify_var(self);
+                let ty_var_temp = ty_var.clone();
+                drop(a);
+                drop(b);
+                ty_var_temp.unify_var(self);
                 return;
             }
-            (UnifyVar::Is(a_ty), UnifyVar::Is(b_ty)) => {
-                if Rc::ptr_eq(&self.0, &other.0) {
-                    return;
-                }
-                a_ty.unify(b_ty).unwrap()
-            }
+            (UnifyVar::Is(a_ty), UnifyVar::Is(b_ty)) => a_ty.unify(b_ty).unwrap(),
         };
+        drop(a);
+        drop(b);
+        if Rc::ptr_eq(&self.0, &other.0) {
+            return;
+        }
         let var = UnifyVarRef::new(ty);
         *self.0.borrow_mut() = UnifyVar::Equal(var.clone());
         *other.0.borrow_mut() = UnifyVar::Equal(var);
@@ -59,7 +64,7 @@ impl<T: Unify + Clone + fmt::Debug> UnifyVarRef<T> {
     pub fn unify_ty(&self, new_ty: T) {
         match &mut *self.0.borrow_mut() {
             UnifyVar::Equal(ty_var) => ty_var.unify_ty(new_ty),
-            UnifyVar::Is(ty) => *ty = new_ty,
+            UnifyVar::Is(ty) => *ty = ty.unify(&new_ty).unwrap(),
         }
     }
 }

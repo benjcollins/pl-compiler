@@ -17,6 +17,7 @@ pub struct Block {
 
 pub struct Func {
     pub name: String,
+    pub params: Vec<Rc<Var>>,
     pub blocks: Vec<StrongBlockRef>,
     pub entry: WeakBlockRef,
 }
@@ -121,6 +122,7 @@ impl Func {
             name,
             blocks,
             entry: block.downgrade(),
+            params: vec![],
         }
     }
     pub fn new_block(&mut self) -> WeakBlockRef {
@@ -157,7 +159,7 @@ impl WeakBlockRef {
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Stmt::Decl(var) => write!(f, "decl {} : {}", var.name, var.ty),
+            Stmt::Decl(var) => write!(f, "var {}: {}", var.name, var.ty),
             Stmt::Drop(var) => write!(f, "drop {}", var.name),
             Stmt::Assign {
                 ref_expr: Expr::Ref(ref_expr),
@@ -202,7 +204,15 @@ impl fmt::Display for Program {
 
 impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "func {}", self.name)?;
+        write!(f, "func {}(", self.name)?;
+        let mut param_iter = self.params.iter();
+        if let Some(param) = param_iter.next() {
+            write!(f, "{}: {}", param.name, param.ty)?;
+            for param in param_iter.next() {
+                write!(f, ", {}: {}", param.name, param.ty)?;
+            }
+        }
+        writeln!(f, ")")?;
         for block in &self.blocks {
             writeln!(f, "b{}:", self.get_block_num(&block.downgrade()))?;
             for stmt in &block.get().stmts {
@@ -210,7 +220,7 @@ impl fmt::Display for Func {
             }
             match &block.get().branch {
                 Branch::Static(block) => {
-                    writeln!(f, "  goto b{};", self.get_block_num(block))
+                    writeln!(f, "  goto b{}", self.get_block_num(block))
                 }
                 Branch::Cond {
                     if_true,
@@ -227,7 +237,22 @@ impl fmt::Display for Func {
                 }
                 Branch::Return(Some(expr)) => writeln!(f, "  return {}", expr),
                 Branch::Return(None) => writeln!(f, "  return"),
-                Branch::Call { name, .. } => writeln!(f, "  call {}", name),
+                Branch::Call {
+                    name,
+                    args,
+                    return_to,
+                } => {
+                    write!(f, "  call {}(", name)?;
+                    let mut args_iter = args.iter();
+                    if let Some(arg) = args_iter.next() {
+                        write!(f, "{}", arg)?;
+                        for arg in args_iter {
+                            write!(f, ", {}", arg)?;
+                        }
+                    }
+                    writeln!(f, ")")?;
+                    writeln!(f, "  goto b{}", self.get_block_num(&return_to))
+                }
             }?;
         }
         Ok(())

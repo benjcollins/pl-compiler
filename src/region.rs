@@ -40,6 +40,23 @@ impl Region {
             _ => panic!(),
         }
     }
+    fn update(&mut self, other: &Region) -> bool {
+        match (self, other) {
+            (Region::Ptr(a), Region::Ptr(b)) => {
+                let mut updated = false;
+                for r in b.iter() {
+                    updated = updated || a.insert(*r);
+                }
+                updated
+            }
+            (Region::Local(a), Region::Local(b)) => {
+                let res = *a && !*b;
+                *a = *a && *b;
+                res
+            }
+            _ => panic!(),
+        }
+    }
 }
 
 impl Regions {
@@ -60,6 +77,19 @@ impl Regions {
         self.regions.push(region);
         RegionId(id)
     }
+    pub fn update(&mut self, other: &Regions) -> bool {
+        let mut updated = false;
+        for (a, b) in self.regions.iter_mut().zip(&other.regions) {
+            updated = updated || a.update(b);
+        }
+        updated
+    }
+}
+
+pub fn check_program(program: &ir::Program) {
+    for func in &program.funcs {
+        check_func(func);
+    }
 }
 
 pub fn check_func(func: &ir::Func) {
@@ -76,35 +106,38 @@ pub fn check_func(func: &ir::Func) {
         };
         let new_regions = propagate_regions(&block, map.get(&block).unwrap());
         println!("{:?}", new_regions);
-        for target in block.upgrade().get().branch.iter_branch_targets() {
-            if map
-                .get(&target)
-                .map_or(true, |past| past.regions != new_regions.regions)
-            {
-                queue.push(target.clone());
-                map.insert(
-                    target.clone(),
-                    match map.get(&target) {
-                        Some(last_regions) => {
-                            if last_regions.regions.len() != new_regions.regions.len() {
-                                panic!()
-                            }
-                            Regions {
-                                scope: new_regions.scope.clone(),
-                                regions: last_regions
-                                    .regions
-                                    .iter()
-                                    .zip(new_regions.regions.iter())
-                                    .map(|(last, new)| last.combine(new))
-                                    .collect(),
-                            }
-                        }
-                        None => new_regions.clone(),
-                    },
-                );
+        match &block.upgrade().get().branch {
+            ir::Branch::Static(target) => {
+                queue_if_changed(&target, &mut map, new_regions, &mut queue);
             }
+            ir::Branch::Cond {
+                if_true, if_false, ..
+            } => {
+                queue_if_changed(&if_true, &mut map, new_regions.clone(), &mut queue);
+                queue_if_changed(&if_false, &mut map, new_regions, &mut queue);
+            }
+            ir::Branch::Return(_) => (),
+            ir::Branch::Call { .. } => todo!(),
         }
     }
+}
+
+pub fn queue_if_changed(
+    block: &ir::WeakBlockRef,
+    map: &mut HashMap<ir::WeakBlockRef, Regions>,
+    new_regions: Regions,
+    queue: &mut Vec<ir::WeakBlockRef>,
+) {
+    map.entry(block.clone())
+        .and_modify(|old_regions| {
+            if old_regions.update(&new_regions) {
+                queue.push(block.clone());
+            }
+        })
+        .or_insert_with(|| {
+            queue.push(block.clone());
+            new_regions
+        });
 }
 
 pub fn propagate_regions(block: &ir::WeakBlockRef, initial_regions: &Regions) -> Regions {
@@ -154,6 +187,7 @@ fn assign_region_to<'f>(ref_expr: &ir::Expr, region: Region, regions: &mut Regio
                 }
             }
         }
+        ir::Expr::Returned => todo!(),
     }
 }
 
@@ -193,6 +227,7 @@ fn get_expr_region<'f>(expr: &ir::Expr, regions: &Regions) -> Region {
         ir::Expr::Var(var) => regions
             .get_region(*regions.scope.get(var.name.as_str()).unwrap())
             .clone(),
+        ir::Expr::Returned => todo!(),
     }
 }
 

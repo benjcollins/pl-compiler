@@ -1,6 +1,3 @@
-func f() {
-    var x = 1;
-    var y = g(x);
+func f(x: i32) i32 {
+    return f(x);
 }
-
-func g(x: i32) u8 {}

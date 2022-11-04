@@ -2,14 +2,14 @@
 
 use std::fs;
 
-use crate::{compile_ast::compile_program, parser::Parser};
+use crate::{compile_ast::compile_program, parser::Parser, region::check_program};
 
 mod ast;
 mod compile_ast;
 mod ir;
 mod lexer;
 mod parser;
-// mod region;
+mod region;
 mod test_lexer;
 mod test_parser;
 mod token;
@@ -31,9 +31,5 @@ fn main() {
 
     println!("{}", program_ir);
 
-    // check_func(&func_ir);
-
-    // let regions = propagate_regions(entry, &Regions::new());
-
-    // println!("{:?}", regions);
+    check_program(&program_ir);
 }

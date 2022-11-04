@@ -30,6 +30,15 @@ pub fn compile_func(func_ast: &ast::Func, program_ast: &ast::Program) -> ir::Fun
         program_ast,
         func_ast,
     };
+    for param in &func_ast.params {
+        let ty = TypeVarRef::new(compiler.compile_ast_ty(&param.ty));
+        let var = Rc::new(ir::Var {
+            name: param.name.clone(),
+            ty,
+        });
+        compiler.scope.insert(&param.name, var.clone());
+        compiler.func.params.push(var)
+    }
     compiler.compile_block(&func_ast.block);
     compiler.func
 }

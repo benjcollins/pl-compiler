@@ -185,19 +185,3 @@ impl fmt::Display for IntType {
         }
     }
 }
-
-impl Expr {
-    pub fn infix(left: Expr, op: InfixOp, right: Expr) -> Expr {
-        Expr::Infix {
-            left: Box::new(left),
-            right: Box::new(right),
-            op,
-        }
-    }
-}
-
-impl Block {
-    pub fn empty() -> Block {
-        Block(vec![])
-    }
-}
