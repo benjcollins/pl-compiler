@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use crate::{
     ast, ir,
@@ -6,7 +6,7 @@ use crate::{
 };
 
 struct Compiler<'a> {
-    scope: HashMap<&'a str, Rc<ir::Var>>,
+    scope: HashMap<&'a str, ir::VarRef>,
     block: ir::WeakBlockRef,
     func: ir::Func,
     program_ast: &'a ast::Program,
@@ -32,7 +32,7 @@ pub fn compile_func(func_ast: &ast::Func, program_ast: &ast::Program) -> ir::Fun
     };
     for param in &func_ast.params {
         let ty = TypeVarRef::new(compiler.compile_ast_ty(&param.ty));
-        let var = Rc::new(ir::Var {
+        let var = ir::VarRef::new(ir::Var {
             name: param.name.clone(),
             ty,
         });
@@ -57,7 +57,7 @@ impl<'s> Compiler<'s> {
             match stmt {
                 ast::Stmt::Decl { name, ty, expr } => {
                     let ty_var = TypeVarRef::new(Type::Any);
-                    let var = Rc::new(ir::Var {
+                    let var = ir::VarRef::new(ir::Var {
                         name: name.clone(),
                         ty: ty_var.clone(),
                     });
@@ -146,7 +146,7 @@ impl<'s> Compiler<'s> {
                 .get_mut()
                 .stmts
                 .push(ir::Stmt::Drop(var.clone()));
-            self.scope.remove(var.name.as_str());
+            self.scope.remove(var.name());
         }
     }
     fn compile_if(&mut self, if_stmt: &'s ast::If) {
@@ -200,7 +200,7 @@ impl<'s> Compiler<'s> {
             }
             ast::Expr::Ident(name) => {
                 let var = self.scope.get(name.as_str()).unwrap();
-                (ir::Expr::Var(var.clone()), var.ty.clone())
+                (ir::Expr::Var(var.clone()), var.ty().clone())
             }
             ast::Expr::Deref(expr) => {
                 let (expr, expr_ty) = self.compile_expr(expr);
@@ -249,7 +249,7 @@ impl<'s> Compiler<'s> {
         match ref_expr {
             ast::RefExpr::Ident(name) => {
                 let var = self.scope.get(name.as_str()).unwrap();
-                (ir::RefExpr::Var(var.clone()), var.ty.clone())
+                (ir::RefExpr::Var(var.clone()), var.ty().clone())
             }
         }
     }

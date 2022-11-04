@@ -1,9 +1,9 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use std::collections::{HashMap, HashSet};
 
-use crate::{ir, ty::Type};
+use crate::{
+    ir::{self, WeakBlockRef},
+    ty::Type,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Region {
@@ -22,10 +22,21 @@ fn create_region(ty: &Type) -> Region {
     }
 }
 
+fn create_region_param(ty: &Type, regions: &mut RegionData) -> RegionId {
+    let region = match ty {
+        Type::Int(_) | Type::Bool => Region::Local(true),
+        Type::Ptr(r) => {
+            let t = r.apply(|r| create_region_param(r, regions));
+            Region::Ptr(HashSet::from_iter(Some(t)))
+        }
+        Type::AnyInt | Type::Any => panic!(),
+    };
+    regions.new_region(region)
+}
+
 #[derive(Debug, Clone)]
-pub struct Regions {
+pub struct RegionData {
     regions: Vec<Region>,
-    scope: HashMap<String, RegionId>,
 }
 
 impl Region {
@@ -59,12 +70,9 @@ impl Region {
     }
 }
 
-impl Regions {
-    pub fn new() -> Regions {
-        Regions {
-            regions: vec![],
-            scope: HashMap::new(),
-        }
+impl RegionData {
+    pub fn new() -> RegionData {
+        RegionData { regions: vec![] }
     }
     pub fn get_region_mut(&mut self, id: RegionId) -> &mut Region {
         &mut self.regions[id.0]
@@ -77,7 +85,7 @@ impl Regions {
         self.regions.push(region);
         RegionId(id)
     }
-    pub fn update(&mut self, other: &Regions) -> bool {
+    pub fn update(&mut self, other: &RegionData) -> bool {
         let mut updated = false;
         for (a, b) in self.regions.iter_mut().zip(&other.regions) {
             updated = updated || a.update(b);
@@ -92,29 +100,49 @@ pub fn check_program(program: &ir::Program) {
     }
 }
 
-pub fn check_func(func: &ir::Func) {
-    let mut map = HashMap::new();
-    let mut queue = vec![];
+struct State {
+    queue: Vec<WeakBlockRef>,
+    map: HashMap<WeakBlockRef, RegionData>,
+}
 
-    queue.push(func.entry.clone());
-    map.insert(func.entry.clone(), Regions::new());
+pub fn check_func(func: &ir::Func) {
+    let mut scope = HashMap::new();
+
+    let mut state = State {
+        map: HashMap::new(),
+        queue: vec![],
+    };
+
+    let mut initial_regions = RegionData::new();
+
+    for param in &func.params {
+        scope.insert(
+            param.clone(),
+            param
+                .ty()
+                .apply(|ty| create_region_param(ty, &mut initial_regions)),
+        );
+    }
+
+    state.queue.push(func.entry.clone());
+    state.map.insert(func.entry.clone(), initial_regions);
 
     loop {
-        let block = match queue.pop() {
+        let block = match state.queue.pop() {
             Some(block) => block,
             None => break,
         };
-        let new_regions = propagate_regions(&block, map.get(&block).unwrap());
+        let new_regions = propagate_regions(&block, state.map.get(&block).unwrap(), &mut scope);
         println!("{:?}", new_regions);
         match &block.upgrade().get().branch {
             ir::Branch::Static(target) => {
-                queue_if_changed(&target, &mut map, new_regions, &mut queue);
+                queue_if_changed(&target, new_regions, &mut state);
             }
             ir::Branch::Cond {
                 if_true, if_false, ..
             } => {
-                queue_if_changed(&if_true, &mut map, new_regions.clone(), &mut queue);
-                queue_if_changed(&if_false, &mut map, new_regions, &mut queue);
+                queue_if_changed(&if_true, new_regions.clone(), &mut state);
+                queue_if_changed(&if_false, new_regions, &mut state);
             }
             ir::Branch::Return(_) => (),
             ir::Branch::Call { .. } => todo!(),
@@ -122,50 +150,54 @@ pub fn check_func(func: &ir::Func) {
     }
 }
 
-pub fn queue_if_changed(
-    block: &ir::WeakBlockRef,
-    map: &mut HashMap<ir::WeakBlockRef, Regions>,
-    new_regions: Regions,
-    queue: &mut Vec<ir::WeakBlockRef>,
-) {
-    map.entry(block.clone())
+fn queue_if_changed(block: &ir::WeakBlockRef, new_regions: RegionData, state: &mut State) {
+    state
+        .map
+        .entry(block.clone())
         .and_modify(|old_regions| {
             if old_regions.update(&new_regions) {
-                queue.push(block.clone());
+                state.queue.push(block.clone());
             }
         })
         .or_insert_with(|| {
-            queue.push(block.clone());
+            state.queue.push(block.clone());
             new_regions
         });
 }
 
-pub fn propagate_regions(block: &ir::WeakBlockRef, initial_regions: &Regions) -> Regions {
+pub fn propagate_regions(
+    block: &ir::WeakBlockRef,
+    initial_regions: &RegionData,
+    scope: &mut HashMap<ir::VarRef, RegionId>,
+) -> RegionData {
     let mut regions = initial_regions.clone();
     for stmt in &block.upgrade().get().stmts {
         match stmt {
             ir::Stmt::Decl(var) => {
-                let region = regions.new_region(var.ty.apply(create_region));
-                regions.scope.insert(var.name.clone(), region);
+                let region = regions.new_region(var.ty().apply(create_region));
+                scope.insert(var.clone(), region);
             }
-            ir::Stmt::Drop(var) => {
-                regions.scope.remove(var.name.as_str());
-            }
+            ir::Stmt::Drop(_) => (),
             ir::Stmt::Assign { ref_expr, expr } => {
-                let region = get_expr_region(expr, &regions);
-                assign_region_to(ref_expr, region, &mut regions);
+                let region = get_expr_region(expr, &regions, scope);
+                assign_region_to(ref_expr, region, &mut regions, scope);
             }
         }
     }
     regions
 }
 
-fn assign_region_to<'f>(ref_expr: &ir::Expr, region: Region, regions: &mut Regions) {
+fn assign_region_to<'f>(
+    ref_expr: &ir::Expr,
+    region: Region,
+    regions: &mut RegionData,
+    scope: &mut HashMap<ir::VarRef, RegionId>,
+) {
     match ref_expr {
         ir::Expr::Bool(_) | ir::Expr::Int(_) | ir::Expr::Infix { .. } => panic!(),
         ir::Expr::Ref(ref_expr) => match ref_expr {
             ir::RefExpr::Var(var) => {
-                let region_id = *regions.scope.get(var.name.as_str()).unwrap();
+                let region_id = *scope.get(var).unwrap();
                 *regions.get_region_mut(region_id) = region.clone();
             }
         },
@@ -173,29 +205,36 @@ fn assign_region_to<'f>(ref_expr: &ir::Expr, region: Region, regions: &mut Regio
             Region::Local(_) => panic!(),
             Region::Ptr(ptr_regions) => {
                 for region in ptr_regions {
-                    assign_region_to(&*ref_expr, regions.get_region(region).clone(), regions)
+                    assign_region_to(
+                        &*ref_expr,
+                        regions.get_region(region).clone(),
+                        regions,
+                        scope,
+                    )
                 }
             }
         },
-        ir::Expr::Var(var) => {
-            match regions.get_region(*regions.scope.get(var.name.as_str()).unwrap()) {
-                Region::Local(_) => panic!(),
-                Region::Ptr(dst_regions) => {
-                    for dst_region in dst_regions.clone() {
-                        *regions.get_region_mut(dst_region) = region.clone();
-                    }
+        ir::Expr::Var(var) => match regions.get_region(*scope.get(&var).unwrap()) {
+            Region::Local(_) => panic!(),
+            Region::Ptr(dst_regions) => {
+                for dst_region in dst_regions.clone() {
+                    *regions.get_region_mut(dst_region) = region.clone();
                 }
             }
-        }
+        },
         ir::Expr::Returned => todo!(),
     }
 }
 
-fn get_expr_region<'f>(expr: &ir::Expr, regions: &Regions) -> Region {
+fn get_expr_region<'f>(
+    expr: &ir::Expr,
+    regions: &RegionData,
+    scope: &mut HashMap<ir::VarRef, RegionId>,
+) -> Region {
     match expr {
         ir::Expr::Infix { left, right, .. } => {
-            let left = get_expr_region(left, regions);
-            let right = get_expr_region(right, regions);
+            let left = get_expr_region(left, regions, scope);
+            let right = get_expr_region(right, regions, scope);
             match (left, right) {
                 (Region::Local(a), Region::Local(b)) => {
                     if a && b {
@@ -211,11 +250,11 @@ fn get_expr_region<'f>(expr: &ir::Expr, regions: &Regions) -> Region {
         ir::Expr::Bool(_) | ir::Expr::Int(_) => Region::Local(true),
         ir::Expr::Ref(ref_expr) => match ref_expr {
             ir::RefExpr::Var(var) => {
-                let region = regions.scope.get(var.name.as_str()).unwrap();
+                let region = scope.get(&var).unwrap();
                 Region::Ptr(HashSet::from_iter(Some(*region)))
             }
         },
-        ir::Expr::Deref(expr) => match get_expr_region(expr, regions) {
+        ir::Expr::Deref(expr) => match get_expr_region(expr, regions, scope) {
             Region::Local(_) => panic!(),
             Region::Ptr(ptr_regions) => ptr_regions
                 .iter()
@@ -224,9 +263,7 @@ fn get_expr_region<'f>(expr: &ir::Expr, regions: &Regions) -> Region {
                 .reduce(|a, b| a.combine(&b))
                 .unwrap(),
         },
-        ir::Expr::Var(var) => regions
-            .get_region(*regions.scope.get(var.name.as_str()).unwrap())
-            .clone(),
+        ir::Expr::Var(var) => regions.get_region(*scope.get(&var).unwrap()).clone(),
         ir::Expr::Returned => todo!(),
     }
 }

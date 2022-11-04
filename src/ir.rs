@@ -17,15 +17,15 @@ pub struct Block {
 
 pub struct Func {
     pub name: String,
-    pub params: Vec<Rc<Var>>,
+    pub params: Vec<VarRef>,
     pub blocks: Vec<StrongBlockRef>,
     pub entry: WeakBlockRef,
 }
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Decl(Rc<Var>),
-    Drop(Rc<Var>),
+    Decl(VarRef),
+    Drop(VarRef),
     Assign { ref_expr: Expr, expr: Expr },
 }
 
@@ -56,13 +56,13 @@ pub enum Expr {
     },
     Ref(RefExpr),
     Deref(Box<Expr>),
-    Var(Rc<Var>),
+    Var(VarRef),
     Returned,
 }
 
 #[derive(Debug, Clone)]
 pub enum RefExpr {
-    Var(Rc<Var>),
+    Var(VarRef),
 }
 
 #[derive(Debug)]
@@ -101,6 +101,35 @@ impl hash::Hash for WeakBlockRef {
 impl hash::Hash for StrongBlockRef {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         state.write_usize(self.0.as_ptr() as usize)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VarRef(Rc<Var>);
+
+impl PartialEq for VarRef {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl hash::Hash for VarRef {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        state.write_usize(self.0.as_ref() as *const _ as usize)
+    }
+}
+
+impl Eq for VarRef {}
+
+impl VarRef {
+    pub fn new(var: Var) -> VarRef {
+        VarRef(Rc::new(var))
+    }
+    pub fn name(&self) -> &str {
+        &self.0.name
+    }
+    pub fn ty(&self) -> &TypeVarRef {
+        &self.0.ty
     }
 }
 
@@ -159,8 +188,8 @@ impl WeakBlockRef {
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Stmt::Decl(var) => write!(f, "var {}: {}", var.name, var.ty),
-            Stmt::Drop(var) => write!(f, "drop {}", var.name),
+            Stmt::Decl(var) => write!(f, "var {}: {}", var.0.name, var.0.ty),
+            Stmt::Drop(var) => write!(f, "drop {}", var.0.name),
             Stmt::Assign {
                 ref_expr: Expr::Ref(ref_expr),
                 expr,
@@ -176,7 +205,7 @@ impl fmt::Display for Expr {
             Expr::Int(value) => write!(f, "{}", value),
             Expr::Infix { left, right, op } => write!(f, "({} {} {})", left, op, right),
             Expr::Ref(expr) => write!(f, "&{}", expr),
-            Expr::Var(var) => write!(f, "{}", var.name),
+            Expr::Var(var) => write!(f, "{}", var.0.name),
             Expr::Deref(expr) => write!(f, "*{}", expr),
             Expr::Bool(true) => write!(f, "true"),
             Expr::Bool(false) => write!(f, "false"),
@@ -188,7 +217,7 @@ impl fmt::Display for Expr {
 impl fmt::Display for RefExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RefExpr::Var(var) => write!(f, "{}", var.name),
+            RefExpr::Var(var) => write!(f, "{}", var.0.name),
         }
     }
 }
@@ -207,9 +236,9 @@ impl fmt::Display for Func {
         write!(f, "func {}(", self.name)?;
         let mut param_iter = self.params.iter();
         if let Some(param) = param_iter.next() {
-            write!(f, "{}: {}", param.name, param.ty)?;
+            write!(f, "{}: {}", param.0.name, param.0.ty)?;
             for param in param_iter.next() {
-                write!(f, ", {}: {}", param.name, param.ty)?;
+                write!(f, ", {}: {}", param.0.name, param.0.ty)?;
             }
         }
         writeln!(f, ")")?;
