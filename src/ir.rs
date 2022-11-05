@@ -135,13 +135,7 @@ impl Func {
     }
 }
 
-impl BlockRef {
-    pub fn index(&self) -> usize {
-        self.0
-    }
-}
-
-struct BlockRefIter {
+pub struct BlockRefIter {
     index: usize,
     end: usize,
 }
