@@ -10,8 +10,6 @@ mod ir;
 mod lexer;
 mod parser;
 mod region;
-mod test_lexer;
-mod test_parser;
 mod token;
 mod ty;
 mod unify;
