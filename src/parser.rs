@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use crate::{
     ast::{
         Block, Else, Expr, Func, FuncCall, If, InfixOp, IntSize, IntType, Param, Program, RefExpr,
-        Stmt, Type,
+        Span, Stmt, Type,
     },
     lexer::Lexer,
     token::{Keyword, Symbol, Token, TokenKind},
@@ -92,19 +92,29 @@ impl<'s> Parser<'s> {
             _ => Err(Expected::RefExpr),
         }
     }
-    pub fn parse_expr(&mut self, prec: Prec) -> Result<Expr, Expected> {
-        let mut left = match self.peek() {
+    pub fn span<T>(
+        &mut self,
+        f: impl Fn(&mut Parser<'s>) -> Result<T, Expected>,
+    ) -> Result<Span<T>, Expected> {
+        Ok(Span {
+            start: self.lexer.offset(),
+            ty: f(self)?,
+            end: self.lexer.offset(),
+        })
+    }
+    pub fn parse_value(&mut self) -> Result<Expr, Expected> {
+        match self.peek() {
             Some(TokenKind::Keyword(Keyword::True)) => {
                 self.next();
-                Expr::Bool(true)
+                Ok(Expr::Bool(true))
             }
             Some(TokenKind::Keyword(Keyword::False)) => {
                 self.next();
-                Expr::Bool(false)
+                Ok(Expr::Bool(false))
             }
             Some(TokenKind::Int(value)) => {
                 self.next();
-                Expr::Int(value.parse().unwrap())
+                Ok(Expr::Int(value.parse().unwrap()))
             }
             Some(TokenKind::Ident(ident)) => {
                 self.next();
@@ -112,38 +122,46 @@ impl<'s> Parser<'s> {
                     let args = self.parse_list(Symbol::Comma, Symbol::CloseBrace, |parser| {
                         parser.parse_expr(Prec::Bracket)
                     })?;
-                    Expr::Call(FuncCall {
+                    Ok(Expr::Call(FuncCall {
                         name: ident.to_string(),
                         args,
-                    })
+                    }))
                 } else {
-                    Expr::Ident(ident.to_string())
+                    Ok(Expr::Ident(ident.to_string()))
                 }
             }
             Some(TokenKind::Symbol(Symbol::Ampersand)) => {
                 self.next();
-                Expr::Ref(self.parse_ref_expr()?)
+                Ok(Expr::Ref(self.parse_ref_expr()?))
             }
             Some(TokenKind::Symbol(Symbol::Asterisk)) => {
                 self.next();
-                Expr::Deref(Box::new(self.parse_expr(Prec::Deref)?))
+                Ok(Expr::Deref(Box::new(self.parse_expr(Prec::Deref)?)))
             }
             Some(TokenKind::Symbol(Symbol::OpenBrace)) => {
                 self.next();
                 let expr = self.parse_expr(Prec::Bracket)?;
                 self.expect_symbol(Symbol::CloseBrace)?;
-                expr
+                Ok(expr.ty)
             }
             _ => return Err(Expected::Expr),
-        };
+        }
+    }
+    pub fn parse_expr(&mut self, prec: Prec) -> Result<Span<Expr>, Expected> {
+        let start = self.lexer.offset();
+        let mut left = self.span(Parser::parse_value)?;
         'outer: loop {
             for op in InfixOp::iter() {
                 if prec > op_prec(op) && self.eat_symbol(op_symbol(op)) {
                     let right = self.parse_expr(op_prec(op))?;
-                    left = Expr::Infix {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        op,
+                    left = Span {
+                        start,
+                        ty: Expr::Infix {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        },
+                        end: self.lexer.offset(),
                     };
                     continue 'outer;
                 }
@@ -345,18 +363,26 @@ impl<'s> Parser<'s> {
 mod tests {
     use crate::{
         ast::{
-            Block, Else, Expr, Func, FuncCall, If, InfixOp, IntSize, IntType, Param, RefExpr, Stmt,
-            Type,
+            Block, Else, Expr, Func, FuncCall, If, InfixOp, IntSize, IntType, Param, RefExpr, Span,
+            Stmt, Type,
         },
         parser::{Parser, Prec},
     };
 
-    fn infix(left: Expr, op: InfixOp, right: Expr) -> Expr {
-        Expr::Infix {
+    fn span<T>(ty: T) -> Span<T> {
+        Span {
+            start: 0,
+            end: 0,
+            ty,
+        }
+    }
+
+    fn infix(left: Span<Expr>, op: InfixOp, right: Span<Expr>) -> Span<Expr> {
+        span(Expr::Infix {
             left: Box::new(left),
             right: Box::new(right),
             op,
-        }
+        })
     }
 
     fn empty_block() -> Block {
@@ -371,9 +397,9 @@ mod tests {
         assert_eq!(
             expr,
             infix(
-                Expr::Ident("a".to_string()),
+                span(Expr::Ident("a".to_string())),
                 InfixOp::Add,
-                infix(Expr::Int(2), InfixOp::Subtract, Expr::Int(9),)
+                infix(span(Expr::Int(2)), InfixOp::Subtract, span(Expr::Int(9)))
             )
         )
     }
@@ -391,7 +417,7 @@ mod tests {
                     size: IntSize::B32,
                     signed: true
                 })),
-                expr: Some(Expr::Int(2)),
+                expr: Some(span(Expr::Int(2))),
             }
         );
     }
@@ -405,7 +431,7 @@ mod tests {
             stmt,
             Stmt::Assign {
                 ref_expr: RefExpr::Ident("x".to_string()),
-                expr: Expr::Int(4)
+                expr: span(Expr::Int(4))
             }
         )
     }
@@ -415,7 +441,7 @@ mod tests {
         let mut parser = Parser::new("return 4;");
         let stmt = parser.parse_stmt().unwrap();
         assert!(parser.peek().is_none());
-        assert_eq!(stmt, Stmt::Return(Some(Expr::Int(4))))
+        assert_eq!(stmt, Stmt::Return(Some(span(Expr::Int(4)))))
     }
 
     #[test]
@@ -426,7 +452,7 @@ mod tests {
         assert_eq!(
             stmt,
             Stmt::While {
-                cond: Expr::Bool(true),
+                cond: span(Expr::Bool(true)),
                 block: Block(vec![])
             }
         )
@@ -440,7 +466,7 @@ mod tests {
         assert_eq!(
             stmt,
             Stmt::If(If {
-                cond: Expr::Bool(true),
+                cond: span(Expr::Bool(true)),
                 if_block: Block(vec![]),
                 else_block: Else::None,
             })
@@ -455,7 +481,7 @@ mod tests {
         assert_eq!(
             stmt,
             Stmt::If(If {
-                cond: Expr::Bool(true),
+                cond: span(Expr::Bool(true)),
                 if_block: Block(vec![]),
                 else_block: Else::Block(Block(vec![]))
             })
@@ -470,10 +496,10 @@ mod tests {
         assert_eq!(
             stmt,
             Stmt::If(If {
-                cond: Expr::Ident("x".to_string()),
+                cond: span(Expr::Ident("x".to_string())),
                 if_block: Block(vec![]),
                 else_block: Else::If(Box::new(If {
-                    cond: Expr::Ident("y".to_string()),
+                    cond: span(Expr::Ident("y".to_string())),
                     if_block: Block(vec![]),
                     else_block: Else::None
                 }))
@@ -489,8 +515,8 @@ mod tests {
         assert_eq!(
             stmt,
             Stmt::DerefAssign {
-                ref_expr: Expr::Ident("x".to_string()),
-                expr: Expr::Int(3)
+                ref_expr: span(Expr::Ident("x".to_string())),
+                expr: span(Expr::Int(3)),
             }
         )
     }
@@ -516,7 +542,7 @@ mod tests {
         let mut parser = Parser::new("&x");
         let expr = parser.parse_expr(Prec::Bracket).unwrap();
         assert!(parser.peek().is_none());
-        assert_eq!(expr, Expr::Ref(RefExpr::Ident("x".to_string())));
+        assert_eq!(expr, span(Expr::Ref(RefExpr::Ident("x".to_string()))));
     }
 
     #[test]
@@ -579,10 +605,10 @@ mod tests {
         assert!(parser.peek().is_none());
         assert_eq!(
             expr,
-            Expr::Call(FuncCall {
+            span(Expr::Call(FuncCall {
                 name: "f".to_string(),
-                args: vec![Expr::Int(5), Expr::Int(2),]
-            })
+                args: vec![span(Expr::Int(5)), span(Expr::Int(2))]
+            }))
         )
     }
 }

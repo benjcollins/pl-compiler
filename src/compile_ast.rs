@@ -172,8 +172,8 @@ impl<'s> Compiler<'s> {
 
         self.block = exit_block;
     }
-    fn compile_expr(&mut self, expr: &ast::Expr) -> (ir::Expr, TypeVarRef) {
-        match expr {
+    fn compile_expr(&mut self, expr: &ast::Span<ast::Expr>) -> (ir::Expr, TypeVarRef) {
+        match &expr.ty {
             ast::Expr::Bool(value) => (ir::Expr::Bool(*value), TypeVarRef::new(Type::Bool)),
             ast::Expr::Int(value) => (ir::Expr::Int(*value), TypeVarRef::new(Type::AnyInt)),
             ast::Expr::Infix { left, right, op } => {

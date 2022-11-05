@@ -33,6 +33,9 @@ impl<'s> Lexer<'s> {
             false
         }
     }
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
     pub fn next_token(&mut self) -> Option<Token<'s>> {
         let mut offset;
         let kind = 'outer: loop {

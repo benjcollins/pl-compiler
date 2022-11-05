@@ -2,16 +2,23 @@ use std::fmt;
 
 use strum::EnumIter;
 
+#[derive(Debug, Clone)]
+pub struct Span<T> {
+    pub ty: T,
+    pub start: usize,
+    pub end: usize,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Call(FuncCall),
     Int(u32),
     Infix {
-        left: Box<Expr>,
-        right: Box<Expr>,
+        left: Box<Span<Expr>>,
+        right: Box<Span<Expr>>,
         op: InfixOp,
     },
-    Deref(Box<Expr>),
+    Deref(Box<Span<Expr>>),
     Ref(RefExpr),
     Ident(String),
     Bool(bool),
@@ -20,7 +27,7 @@ pub enum Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FuncCall {
     pub name: String,
-    pub args: Vec<Expr>,
+    pub args: Vec<Span<Expr>>,
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, PartialEq)]
@@ -60,27 +67,27 @@ pub enum Stmt {
     Decl {
         name: String,
         ty: Option<Type>,
-        expr: Option<Expr>,
+        expr: Option<Span<Expr>>,
     },
     Assign {
         ref_expr: RefExpr,
-        expr: Expr,
+        expr: Span<Expr>,
     },
     DerefAssign {
-        ref_expr: Expr,
-        expr: Expr,
+        ref_expr: Span<Expr>,
+        expr: Span<Expr>,
     },
     If(If),
     While {
-        cond: Expr,
+        cond: Span<Expr>,
         block: Block,
     },
-    Return(Option<Expr>),
+    Return(Option<Span<Expr>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct If {
-    pub cond: Expr,
+    pub cond: Span<Expr>,
     pub if_block: Block,
     pub else_block: Else,
 }
@@ -111,6 +118,18 @@ pub struct Func {
 
 pub struct Program {
     pub funcs: Vec<Func>,
+}
+
+impl<T: PartialEq> PartialEq for Span<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ty == other.ty
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Span<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.ty)
+    }
 }
 
 impl fmt::Display for Expr {
