@@ -100,7 +100,7 @@ pub enum Else {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block(pub Vec<Stmt>);
+pub struct Block(pub Vec<Span<Stmt>>);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {

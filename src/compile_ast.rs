@@ -60,7 +60,7 @@ impl<'s> Compiler<'s> {
     pub fn compile_block(&mut self, block: &'s ast::Block) {
         let mut decls = vec![];
         for stmt in &block.0 {
-            match stmt {
+            match &stmt.ty {
                 ast::Stmt::Decl { name, ty, expr } => {
                     let ty_var = TypeVarRef::new(Type::Any);
                     let var = ir::VarRef::new(ir::Var {

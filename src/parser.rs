@@ -290,7 +290,7 @@ impl<'s> Parser<'s> {
         let mut stmts = vec![];
         self.expect_symbol(Symbol::OpenCurlyBrace)?;
         while self.peek() != Some(TokenKind::Symbol(Symbol::CloseCurlyBrace)) {
-            stmts.push(self.parse_stmt()?);
+            stmts.push(self.span(|parser| parser.parse_stmt())?);
         }
         self.next();
         Ok(Block(stmts))
