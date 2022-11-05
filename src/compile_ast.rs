@@ -44,8 +44,8 @@ pub fn compile_func(func_ast: &ast::Func, program_ast: &ast::Program) -> ir::Fun
 }
 
 impl<'s> Compiler<'s> {
-    fn compile_ast_ty(&self, ty: &ast::Type) -> Type {
-        match ty {
+    fn compile_ast_ty(&self, ty: &ast::Span<ast::Type>) -> Type {
+        match &ty.ty {
             ast::Type::Int(ty) => Type::Int(*ty),
             ast::Type::Ptr(ty) => Type::Ptr(TypeVarRef::new(self.compile_ast_ty(ty))),
             ast::Type::Bool => Type::Bool,
@@ -240,8 +240,8 @@ impl<'s> Compiler<'s> {
             }
         }
     }
-    fn compile_ref_expr(&self, ref_expr: &ast::RefExpr) -> (ir::RefExpr, TypeVarRef) {
-        match ref_expr {
+    fn compile_ref_expr(&self, ref_expr: &ast::Span<ast::RefExpr>) -> (ir::RefExpr, TypeVarRef) {
+        match &ref_expr.ty {
             ast::RefExpr::Ident(name) => {
                 let var = self.scope.get(name.as_str()).unwrap();
                 (ir::RefExpr::Var(var.clone()), var.ty().clone())

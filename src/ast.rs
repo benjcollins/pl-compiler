@@ -19,7 +19,7 @@ pub enum Expr {
         op: InfixOp,
     },
     Deref(Box<Span<Expr>>),
-    Ref(RefExpr),
+    Ref(Span<RefExpr>),
     Ident(String),
     Bool(bool),
 }
@@ -43,7 +43,7 @@ pub enum RefExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Ptr(Box<Type>),
+    Ptr(Box<Span<Type>>),
     Int(IntType),
     Bool,
 }
@@ -66,11 +66,11 @@ pub enum IntSize {
 pub enum Stmt {
     Decl {
         name: String,
-        ty: Option<Type>,
+        ty: Option<Span<Type>>,
         expr: Option<Span<Expr>>,
     },
     Assign {
-        ref_expr: RefExpr,
+        ref_expr: Span<RefExpr>,
         expr: Span<Expr>,
     },
     DerefAssign {
@@ -105,14 +105,14 @@ pub struct Block(pub Vec<Stmt>);
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
     pub name: String,
-    pub ty: Type,
+    pub ty: Span<Type>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Func {
     pub name: String,
     pub params: Vec<Param>,
-    pub returns: Option<Type>,
+    pub returns: Option<Span<Type>>,
     pub block: Block,
 }
 

@@ -132,7 +132,7 @@ impl<'s> Parser<'s> {
             }
             Some(TokenKind::Symbol(Symbol::Ampersand)) => {
                 self.next();
-                Ok(Expr::Ref(self.parse_ref_expr()?))
+                Ok(Expr::Ref(self.span(|parser| parser.parse_ref_expr())?))
             }
             Some(TokenKind::Symbol(Symbol::Asterisk)) => {
                 self.next();
@@ -178,7 +178,9 @@ impl<'s> Parser<'s> {
         match self.peek() {
             Some(TokenKind::Symbol(Symbol::Asterisk)) => {
                 self.next();
-                Ok(Type::Ptr(Box::new(self.parse_type()?)))
+                Ok(Type::Ptr(Box::new(
+                    self.span(|parser| parser.parse_type())?,
+                )))
             }
             Some(TokenKind::Keyword(Keyword::I8)) => self.parse_int_ty(IntSize::B8, true),
             Some(TokenKind::Keyword(Keyword::I16)) => self.parse_int_ty(IntSize::B16, true),
@@ -226,7 +228,7 @@ impl<'s> Parser<'s> {
                 };
                 self.next();
                 let ty = if self.eat_symbol(Symbol::Colon) {
-                    Some(self.parse_type()?)
+                    Some(self.span(|parser| parser.parse_type())?)
                 } else {
                     None
                 };
@@ -239,14 +241,15 @@ impl<'s> Parser<'s> {
                 Ok(Stmt::Decl { name, ty, expr })
             }
             Some(TokenKind::Ident(name)) => {
+                let ref_expr = self.span(|parser| {
+                    parser.next();
+                    Ok(RefExpr::Ident(name.to_string()))
+                })?;
                 self.next();
                 self.expect_symbol(Symbol::Assign)?;
                 let expr = self.parse_expr(Prec::Bracket)?;
                 self.expect_symbol(Symbol::Semicolon)?;
-                Ok(Stmt::Assign {
-                    ref_expr: RefExpr::Ident(name.to_string()),
-                    expr,
-                })
+                Ok(Stmt::Assign { ref_expr, expr })
             }
             Some(TokenKind::Symbol(Symbol::Asterisk)) => {
                 self.next();
@@ -318,7 +321,7 @@ impl<'s> Parser<'s> {
         };
         self.next();
         self.expect_symbol(Symbol::Colon)?;
-        let ty = self.parse_type()?;
+        let ty = self.span(|parser| parser.parse_type())?;
         Ok(Param { name, ty })
     }
     pub fn parse_func(&mut self) -> Result<Func, Expected> {
@@ -335,7 +338,7 @@ impl<'s> Parser<'s> {
                     parser.parse_param()
                 })?;
                 let returns = if self.peek() != Some(TokenKind::Symbol(Symbol::OpenCurlyBrace)) {
-                    Some(self.parse_type()?)
+                    Some(self.span(|parser| parser.parse_type())?)
                 } else {
                     None
                 };
@@ -413,10 +416,10 @@ mod tests {
             stmt,
             Stmt::Decl {
                 name: "x".to_string(),
-                ty: Some(Type::Int(IntType {
+                ty: Some(span(Type::Int(IntType {
                     size: IntSize::B32,
                     signed: true
-                })),
+                }))),
                 expr: Some(span(Expr::Int(2))),
             }
         );
@@ -430,7 +433,7 @@ mod tests {
         assert_eq!(
             stmt,
             Stmt::Assign {
-                ref_expr: RefExpr::Ident("x".to_string()),
+                ref_expr: span(RefExpr::Ident("x".to_string())),
                 expr: span(Expr::Int(4))
             }
         )
@@ -542,7 +545,7 @@ mod tests {
         let mut parser = Parser::new("&x");
         let expr = parser.parse_expr(Prec::Bracket).unwrap();
         assert!(parser.peek().is_none());
-        assert_eq!(expr, span(Expr::Ref(RefExpr::Ident("x".to_string()))));
+        assert_eq!(expr, span(Expr::Ref(span(RefExpr::Ident("x".to_string())))));
     }
 
     #[test]
@@ -557,10 +560,10 @@ mod tests {
                 block: empty_block(),
                 params: vec![Param {
                     name: "x".to_string(),
-                    ty: Type::Int(IntType {
+                    ty: span(Type::Int(IntType {
                         signed: true,
                         size: IntSize::B32
-                    })
+                    }))
                 }],
                 returns: None,
             }
@@ -580,17 +583,17 @@ mod tests {
                 params: vec![
                     Param {
                         name: "x".to_string(),
-                        ty: Type::Int(IntType {
+                        ty: span(Type::Int(IntType {
                             signed: true,
                             size: IntSize::B32
-                        })
+                        }))
                     },
                     Param {
                         name: "y".to_string(),
-                        ty: Type::Int(IntType {
+                        ty: span(Type::Int(IntType {
                             signed: false,
                             size: IntSize::B32
-                        })
+                        }))
                     }
                 ],
                 returns: None,
