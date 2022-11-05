@@ -1,9 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{
-    ir::{self, WeakBlockRef},
-    ty::Type,
-};
+use crate::{ir, ty::Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Region {
@@ -101,8 +98,8 @@ pub fn check_program(program: &ir::Program) {
 }
 
 struct State {
-    queue: Vec<WeakBlockRef>,
-    map: HashMap<WeakBlockRef, RegionData>,
+    queue: Vec<ir::BlockRef>,
+    map: HashMap<ir::BlockRef, RegionData>,
 }
 
 pub fn check_func(func: &ir::Func) {
@@ -132,9 +129,10 @@ pub fn check_func(func: &ir::Func) {
             Some(block) => block,
             None => break,
         };
-        let new_regions = propagate_regions(&block, state.map.get(&block).unwrap(), &mut scope);
+        let new_regions =
+            propagate_regions(block, state.map.get(&block).unwrap(), &mut scope, func);
         println!("{:?}", new_regions);
-        match &block.upgrade().get().branch {
+        match &func.get_block(block).branch {
             ir::Branch::Static(target) => {
                 queue_if_changed(&target, new_regions, &mut state);
             }
@@ -150,7 +148,7 @@ pub fn check_func(func: &ir::Func) {
     }
 }
 
-fn queue_if_changed(block: &ir::WeakBlockRef, new_regions: RegionData, state: &mut State) {
+fn queue_if_changed(block: &ir::BlockRef, new_regions: RegionData, state: &mut State) {
     state
         .map
         .entry(block.clone())
@@ -166,12 +164,13 @@ fn queue_if_changed(block: &ir::WeakBlockRef, new_regions: RegionData, state: &m
 }
 
 pub fn propagate_regions(
-    block: &ir::WeakBlockRef,
+    block: ir::BlockRef,
     initial_regions: &RegionData,
     scope: &mut HashMap<ir::VarRef, RegionId>,
+    func: &ir::Func,
 ) -> RegionData {
     let mut regions = initial_regions.clone();
-    for stmt in &block.upgrade().get().stmts {
+    for stmt in &func.get_block(block).stmts {
         match stmt {
             ir::Stmt::Decl(var) => {
                 let region = regions.new_region(var.ty().apply(create_region));

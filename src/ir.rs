@@ -1,8 +1,4 @@
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    fmt, hash,
-    rc::{Rc, Weak},
-};
+use std::{fmt, hash, rc::Rc};
 
 use crate::{ast::InfixOp, ty::TypeVarRef};
 
@@ -18,8 +14,8 @@ pub struct Block {
 pub struct Func {
     pub name: String,
     pub params: Vec<VarRef>,
-    pub blocks: Vec<StrongBlockRef>,
-    pub entry: WeakBlockRef,
+    pub blocks: Vec<Block>,
+    pub entry: BlockRef,
 }
 
 #[derive(Debug, Clone)]
@@ -31,17 +27,17 @@ pub enum Stmt {
 
 #[derive(Clone)]
 pub enum Branch {
-    Static(WeakBlockRef),
+    Static(BlockRef),
     Cond {
         cond: Expr,
-        if_true: WeakBlockRef,
-        if_false: WeakBlockRef,
+        if_true: BlockRef,
+        if_false: BlockRef,
     },
     Return(Option<Expr>),
     Call {
         name: String,
         args: Vec<Expr>,
-        return_to: WeakBlockRef,
+        return_to: BlockRef,
     },
 }
 
@@ -71,38 +67,8 @@ pub struct Var {
     pub ty: TypeVarRef,
 }
 
-#[derive(Clone)]
-pub struct WeakBlockRef(Weak<RefCell<Block>>);
-
-#[derive(Clone)]
-pub struct StrongBlockRef(Rc<RefCell<Block>>);
-
-impl PartialEq for StrongBlockRef {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl PartialEq for WeakBlockRef {
-    fn eq(&self, other: &Self) -> bool {
-        Weak::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl Eq for StrongBlockRef {}
-impl Eq for WeakBlockRef {}
-
-impl hash::Hash for WeakBlockRef {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.0.as_ptr() as usize)
-    }
-}
-
-impl hash::Hash for StrongBlockRef {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.0.as_ptr() as usize)
-    }
-}
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct BlockRef(usize);
 
 #[derive(Debug, Clone)]
 pub struct VarRef(Rc<Var>);
@@ -144,44 +110,52 @@ impl Block {
 
 impl Func {
     pub fn new(name: String) -> Func {
-        let mut blocks = vec![];
-        let block = StrongBlockRef(Rc::new(RefCell::new(Block::new())));
-        blocks.push(block.clone());
         Func {
             name,
-            blocks,
-            entry: block.downgrade(),
+            blocks: vec![Block::new()],
+            entry: BlockRef(0),
             params: vec![],
         }
     }
-    pub fn new_block(&mut self) -> WeakBlockRef {
-        let block = StrongBlockRef(Rc::new(RefCell::new(Block::new())));
-        self.blocks.push(block.clone());
-        block.downgrade()
+    pub fn new_block(&mut self) -> BlockRef {
+        self.blocks.push(Block::new());
+        BlockRef(self.blocks.len() - 1)
     }
-    fn get_block_num(&self, block: &WeakBlockRef) -> usize {
-        self.blocks
-            .iter()
-            .position(|b| &b.downgrade() == block)
-            .unwrap()
+    pub fn get_block(&self, block: BlockRef) -> &Block {
+        &self.blocks[block.0]
     }
-}
-
-impl StrongBlockRef {
-    pub fn downgrade(&self) -> WeakBlockRef {
-        WeakBlockRef(Rc::downgrade(&self.0))
+    pub fn get_block_mut(&mut self, block: BlockRef) -> &mut Block {
+        &mut self.blocks[block.0]
     }
-    pub fn get(&self) -> Ref<Block> {
-        self.0.borrow()
-    }
-    pub fn get_mut(&self) -> RefMut<Block> {
-        self.0.borrow_mut()
+    pub fn iter_blocks(&self) -> BlockRefIter {
+        BlockRefIter {
+            index: 0,
+            end: self.blocks.len(),
+        }
     }
 }
 
-impl WeakBlockRef {
-    pub fn upgrade(&self) -> StrongBlockRef {
-        StrongBlockRef(self.0.upgrade().unwrap())
+impl BlockRef {
+    pub fn index(&self) -> usize {
+        self.0
+    }
+}
+
+struct BlockRefIter {
+    index: usize,
+    end: usize,
+}
+
+impl Iterator for BlockRefIter {
+    type Item = BlockRef;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.end {
+            self.index += 1;
+            Some(BlockRef(self.index - 1))
+        } else {
+            None
+        }
     }
 }
 
@@ -231,6 +205,12 @@ impl fmt::Display for Program {
     }
 }
 
+impl fmt::Display for BlockRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "b{}", self.0)
+    }
+}
+
 impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "func {}(", self.name)?;
@@ -242,27 +222,21 @@ impl fmt::Display for Func {
             }
         }
         writeln!(f, ")")?;
-        for block in &self.blocks {
-            writeln!(f, "b{}:", self.get_block_num(&block.downgrade()))?;
-            for stmt in &block.get().stmts {
+        for block in self.iter_blocks() {
+            writeln!(f, "{}:", block)?;
+            for stmt in &self.get_block(block).stmts {
                 writeln!(f, "  {}", stmt)?;
             }
-            match &block.get().branch {
+            match &self.get_block(block).branch {
                 Branch::Static(block) => {
-                    writeln!(f, "  goto b{}", self.get_block_num(block))
+                    writeln!(f, "  goto {}", block)
                 }
                 Branch::Cond {
                     if_true,
                     if_false,
                     cond,
                 } => {
-                    let if_true_num = self.get_block_num(&if_true);
-                    let if_false_num = self.get_block_num(&if_false);
-                    writeln!(
-                        f,
-                        "  if {} goto b{} else goto b{}",
-                        cond, if_true_num, if_false_num
-                    )
+                    writeln!(f, "  if {} goto {} else goto {}", cond, if_true, if_false)
                 }
                 Branch::Return(Some(expr)) => writeln!(f, "  return {}", expr),
                 Branch::Return(None) => writeln!(f, "  return"),
@@ -280,7 +254,7 @@ impl fmt::Display for Func {
                         }
                     }
                     writeln!(f, ")")?;
-                    writeln!(f, "  goto b{}", self.get_block_num(&return_to))
+                    writeln!(f, "  goto {}", return_to)
                 }
             }?;
         }

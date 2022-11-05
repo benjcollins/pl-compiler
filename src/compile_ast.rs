@@ -7,7 +7,7 @@ use crate::{
 
 struct Compiler<'a> {
     scope: HashMap<&'a str, ir::VarRef>,
-    block: ir::WeakBlockRef,
+    block: ir::BlockRef,
     func: ir::Func,
     program_ast: &'a ast::Program,
     func_ast: &'a ast::Func,
@@ -51,6 +51,12 @@ impl<'s> Compiler<'s> {
             ast::Type::Bool => Type::Bool,
         }
     }
+    pub fn push_inst(&mut self, inst: ir::Stmt) {
+        self.func.get_block_mut(self.block).stmts.push(inst);
+    }
+    pub fn set_branch(&mut self, branch: ir::Branch) {
+        self.func.get_block_mut(self.block).branch = branch;
+    }
     pub fn compile_block(&mut self, block: &'s ast::Block) {
         let mut decls = vec![];
         for stmt in &block.0 {
@@ -63,18 +69,14 @@ impl<'s> Compiler<'s> {
                     });
                     decls.push(var.clone());
                     self.scope.insert(&name, var.clone());
-                    self.block
-                        .upgrade()
-                        .get_mut()
-                        .stmts
-                        .push(ir::Stmt::Decl(var.clone()));
+                    self.push_inst(ir::Stmt::Decl(var.clone()));
                     if let Some(ty) = ty {
                         ty_var.unify_ty(self.compile_ast_ty(&ty));
                     }
                     if let Some(expr) = expr {
                         let (expr, expr_ty) = self.compile_expr(&expr);
                         expr_ty.unify_var(&ty_var);
-                        self.block.upgrade().get_mut().stmts.push(ir::Stmt::Assign {
+                        self.push_inst(ir::Stmt::Assign {
                             ref_expr: ir::Expr::Ref(ir::RefExpr::Var(var)),
                             expr,
                         })
@@ -84,7 +86,7 @@ impl<'s> Compiler<'s> {
                     let (expr, expr_ty) = self.compile_expr(&expr);
                     let (ref_expr, ref_expr_ty) = self.compile_ref_expr(&ref_expr);
                     expr_ty.unify_var(&ref_expr_ty);
-                    self.block.upgrade().get_mut().stmts.push(ir::Stmt::Assign {
+                    self.push_inst(ir::Stmt::Assign {
                         ref_expr: ir::Expr::Ref(ref_expr),
                         expr,
                     });
@@ -93,11 +95,7 @@ impl<'s> Compiler<'s> {
                     let (expr, expr_ty) = self.compile_expr(&expr);
                     let (ref_expr, ref_expr_ty) = self.compile_expr(&ref_expr);
                     ref_expr_ty.unify_ty(Type::Ptr(expr_ty));
-                    self.block
-                        .upgrade()
-                        .get_mut()
-                        .stmts
-                        .push(ir::Stmt::Assign { ref_expr, expr });
+                    self.push_inst(ir::Stmt::Assign { ref_expr, expr });
                 }
                 ast::Stmt::If(if_stmt) => self.compile_if(if_stmt),
                 ast::Stmt::While { cond, block } => {
@@ -108,17 +106,18 @@ impl<'s> Compiler<'s> {
                     let (cond, cond_ty) = self.compile_expr(&cond);
                     cond_ty.unify_ty(Type::Bool);
 
-                    self.block.upgrade().get_mut().branch = ir::Branch::Static(cond_block.clone());
+                    self.set_branch(ir::Branch::Static(cond_block));
 
-                    cond_block.upgrade().get_mut().branch = ir::Branch::Cond {
+                    self.block = cond_block;
+                    self.set_branch(ir::Branch::Cond {
                         cond,
-                        if_true: loop_block.clone(),
-                        if_false: exit_block.clone(),
-                    };
+                        if_true: loop_block,
+                        if_false: exit_block,
+                    });
 
                     self.block = loop_block;
                     self.compile_block(&block);
-                    self.block.upgrade().get_mut().branch = ir::Branch::Static(cond_block);
+                    self.set_branch(ir::Branch::Static(cond_block));
 
                     self.block = exit_block;
                 }
@@ -136,16 +135,12 @@ impl<'s> Compiler<'s> {
                         );
                         expr
                     });
-                    self.block.upgrade().get_mut().branch = ir::Branch::Return(expr);
+                    self.set_branch(ir::Branch::Return(expr));
                 }
             }
         }
         for var in decls {
-            self.block
-                .upgrade()
-                .get_mut()
-                .stmts
-                .push(ir::Stmt::Drop(var.clone()));
+            self.push_inst(ir::Stmt::Drop(var.clone()));
             self.scope.remove(var.name());
         }
     }
@@ -157,15 +152,15 @@ impl<'s> Compiler<'s> {
         let (cond, cond_ty) = self.compile_expr(&if_stmt.cond);
         cond_ty.unify_ty(Type::Bool);
 
-        self.block.upgrade().get_mut().branch = ir::Branch::Cond {
+        self.set_branch(ir::Branch::Cond {
             cond,
-            if_true: if_block.clone(),
-            if_false: else_block.clone(),
-        };
+            if_true: if_block,
+            if_false: else_block,
+        });
 
         self.block = if_block;
         self.compile_block(&if_stmt.if_block);
-        self.block.upgrade().get_mut().branch = ir::Branch::Static(exit_block.clone());
+        self.set_branch(ir::Branch::Static(exit_block));
 
         self.block = else_block;
         match &if_stmt.else_block {
@@ -173,7 +168,7 @@ impl<'s> Compiler<'s> {
             ast::Else::If(if_stmt) => self.compile_if(&*if_stmt),
             ast::Else::None => (),
         }
-        self.block.upgrade().get_mut().branch = ir::Branch::Static(exit_block.clone());
+        self.set_branch(ir::Branch::Static(exit_block));
 
         self.block = exit_block;
     }
@@ -225,11 +220,11 @@ impl<'s> Compiler<'s> {
                     arg_ty.unify_ty(self.compile_ast_ty(&param.ty));
                 }
                 let return_block = self.func.new_block();
-                self.block.upgrade().get_mut().branch = ir::Branch::Call {
+                self.set_branch(ir::Branch::Call {
                     name: func.name.clone(),
                     args,
-                    return_to: return_block.clone(),
-                };
+                    return_to: return_block,
+                });
                 self.block = return_block;
                 (
                     ir::Expr::Returned,
