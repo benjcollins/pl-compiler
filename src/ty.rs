@@ -15,18 +15,18 @@ pub enum Type {
 }
 
 impl Unify for Type {
-    fn unify(&self, other: &Self) -> Result<Type, (Type, Type)> {
+    fn unify(&self, other: &Self) -> Option<Type> {
         match (self, other) {
-            (Type::Any, a) | (a, Type::Any) => Ok(a.clone()),
-            (Type::Bool, Type::Bool) => Ok(Type::Bool),
+            (Type::Any, a) | (a, Type::Any) => Some(a.clone()),
+            (Type::Bool, Type::Bool) => Some(Type::Bool),
             (Type::Ptr(a), Type::Ptr(b)) => {
-                a.unify_var(b);
-                Ok(Type::Ptr(a.clone()))
+                a.unify_var(b).map_or(None, |ty| Some(ty))?;
+                Some(Type::Ptr(a.clone()))
             }
-            (Type::Int(a), Type::Int(b)) if a == b => Ok(Type::Int(*a)),
-            (Type::AnyInt, Type::Int(a)) | (Type::Int(a), Type::AnyInt) => Ok(Type::Int(*a)),
-            (Type::AnyInt, Type::AnyInt) => Ok(Type::AnyInt),
-            (a, b) => Err((a.clone(), b.clone())),
+            (Type::Int(a), Type::Int(b)) if a == b => Some(Type::Int(*a)),
+            (Type::AnyInt, Type::Int(a)) | (Type::Int(a), Type::AnyInt) => Some(Type::Int(*a)),
+            (Type::AnyInt, Type::AnyInt) => Some(Type::AnyInt),
+            _ => None,
         }
     }
 }
@@ -63,14 +63,14 @@ mod tests {
     fn test_unify_int() {
         let a = TypeVarRef::new(Type::Any);
         let b = TypeVarRef::new(Type::Int(I32));
-        a.unify_var(&b);
+        a.unify_var(&b).unwrap();
         assert_eq!(a, b);
     }
     #[test]
     fn test_unify_ref_bool() {
         let a = TypeVarRef::new(Type::Ptr(TypeVarRef::new(Type::Bool)));
         let b = TypeVarRef::new(Type::Ptr(TypeVarRef::new(Type::Any)));
-        a.unify_var(&b);
+        a.unify_var(&b).unwrap();
         assert_eq!(a, b);
     }
 }

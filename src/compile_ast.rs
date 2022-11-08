@@ -75,7 +75,7 @@ impl<'s> Compiler<'s> {
                     }
                     if let Some(expr) = expr {
                         let (expr, expr_ty) = self.compile_expr(&expr);
-                        expr_ty.unify_var(&ty_var);
+                        expr_ty.unify_var(&ty_var).unwrap();
                         self.push_inst(ir::Stmt::Assign {
                             ref_expr: ir::Expr::Ref(ir::RefExpr::Var(var)),
                             expr,
@@ -85,7 +85,7 @@ impl<'s> Compiler<'s> {
                 ast::Stmt::Assign { ref_expr, expr } => {
                     let (expr, expr_ty) = self.compile_expr(&expr);
                     let (ref_expr, ref_expr_ty) = self.compile_ref_expr(&ref_expr);
-                    expr_ty.unify_var(&ref_expr_ty);
+                    expr_ty.unify_var(&ref_expr_ty).unwrap();
                     self.push_inst(ir::Stmt::Assign {
                         ref_expr: ir::Expr::Ref(ref_expr),
                         expr,
@@ -180,7 +180,7 @@ impl<'s> Compiler<'s> {
                 let (left_expr, left_ty) = self.compile_expr(left);
                 let (right_expr, right_ty) = self.compile_expr(right);
                 left_ty.unify_ty(Type::AnyInt);
-                right_ty.unify_var(&left_ty);
+                right_ty.unify_var(&left_ty).unwrap();
                 let expr = ir::Expr::Infix {
                     left: Box::new(left_expr),
                     right: Box::new(right_expr),
@@ -233,7 +233,7 @@ impl<'s> Compiler<'s> {
                             &func
                                 .returns
                                 .as_ref()
-                                .expect("func does not return anything"),
+                                .expect("return statement in func that does not return anything"),
                         ),
                     ),
                 )

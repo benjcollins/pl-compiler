@@ -1,3 +1,10 @@
-func f(x: *i32) {
-    var y = *x;
+func f() {
+    var x;
+    var y: *i32 = &x;
+    var z = *y;
+    if true {
+        *y = 2;
+    } else {
+        x = 2;
+    }
 }

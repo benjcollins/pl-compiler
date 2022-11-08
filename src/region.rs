@@ -121,8 +121,8 @@ pub fn check_func(func: &ir::Func) {
         );
     }
 
-    state.queue.push(func.entry.clone());
-    state.map.insert(func.entry.clone(), initial_regions);
+    state.queue.push(func.entry);
+    state.map.insert(func.entry, initial_regions);
 
     loop {
         let block = match state.queue.pop() {
@@ -132,15 +132,16 @@ pub fn check_func(func: &ir::Func) {
         let new_regions =
             propagate_regions(block, state.map.get(&block).unwrap(), &mut scope, func);
         println!("{:?}", new_regions);
+
         match &func.get_block(block).branch {
             ir::Branch::Static(target) => {
-                queue_if_changed(&target, new_regions, &mut state);
+                queue_if_changed(*target, new_regions, &mut state);
             }
             ir::Branch::Cond {
                 if_true, if_false, ..
             } => {
-                queue_if_changed(&if_true, new_regions.clone(), &mut state);
-                queue_if_changed(&if_false, new_regions, &mut state);
+                queue_if_changed(*if_true, new_regions.clone(), &mut state);
+                queue_if_changed(*if_false, new_regions, &mut state);
             }
             ir::Branch::Return(_) => (),
             ir::Branch::Call { .. } => todo!(),
@@ -148,17 +149,17 @@ pub fn check_func(func: &ir::Func) {
     }
 }
 
-fn queue_if_changed(block: &ir::BlockRef, new_regions: RegionData, state: &mut State) {
+fn queue_if_changed(block: ir::BlockRef, new_regions: RegionData, state: &mut State) {
     state
         .map
-        .entry(block.clone())
+        .entry(block)
         .and_modify(|old_regions| {
             if old_regions.update(&new_regions) {
-                state.queue.push(block.clone());
+                state.queue.push(block);
             }
         })
         .or_insert_with(|| {
-            state.queue.push(block.clone());
+            state.queue.push(block);
             new_regions
         });
 }

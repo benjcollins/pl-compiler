@@ -245,7 +245,6 @@ impl<'s> Parser<'s> {
                     parser.next();
                     Ok(RefExpr::Ident(name.to_string()))
                 })?;
-                self.next();
                 self.expect_symbol(Symbol::Assign)?;
                 let expr = self.parse_expr(Prec::Bracket)?;
                 self.expect_symbol(Symbol::Semicolon)?;
@@ -253,14 +252,11 @@ impl<'s> Parser<'s> {
             }
             Some(TokenKind::Symbol(Symbol::Asterisk)) => {
                 self.next();
-                let ptr = self.parse_expr(Prec::Bracket)?;
+                let ref_expr = self.parse_expr(Prec::Bracket)?;
                 self.expect_symbol(Symbol::Assign)?;
                 let expr = self.parse_expr(Prec::Bracket)?;
                 self.expect_symbol(Symbol::Semicolon)?;
-                Ok(Stmt::DerefAssign {
-                    ref_expr: ptr,
-                    expr,
-                })
+                Ok(Stmt::DerefAssign { ref_expr, expr })
             }
             Some(TokenKind::Keyword(Keyword::Return)) => {
                 self.next();
