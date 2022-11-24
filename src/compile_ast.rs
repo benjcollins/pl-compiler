@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast, ir,
+    ast::{self, Span},
+    ir,
     ty::{Type, TypeVarRef},
 };
 
@@ -32,15 +33,31 @@ pub fn compile_func(func_ast: &ast::Func, program_ast: &ast::Program) -> ir::Fun
     };
     for param in &func_ast.params {
         let ty = TypeVarRef::new(compiler.compile_ast_ty(&param.ty));
-        let var = ir::VarRef::new(ir::Var {
-            name: param.name.clone(),
-            ty,
-        });
+        let var = ir::VarRef::new(param.name.clone(), ty);
         compiler.scope.insert(&param.name, var.clone());
         compiler.func.params.push(var)
     }
     compiler.compile_block(&func_ast.block);
     compiler.func
+}
+
+// Types not same due to
+// * assignment
+// * equality test
+// * not a numeric type
+// * not the same numeric type
+// * incorrect return type
+// * function does not return
+// * cannot deref non-pointer
+
+enum TypeError {
+    Assignment,
+    Compare,
+    NotNumeric,
+    TypesDontMatch,
+    IncorrectReturn,
+    UnexpectedReturn,
+    ExpectedPointer,
 }
 
 impl<'s> Compiler<'s> {
@@ -62,20 +79,20 @@ impl<'s> Compiler<'s> {
         for stmt in &block.0 {
             match &stmt.ty {
                 ast::Stmt::Decl { name, ty, expr } => {
-                    let ty_var = TypeVarRef::new(Type::Any);
-                    let var = ir::VarRef::new(ir::Var {
-                        name: name.clone(),
-                        ty: ty_var.clone(),
+                    let ty_var = TypeVarRef::new(match ty {
+                        Some(ty) => self.compile_ast_ty(&ty),
+                        None => Type::Any,
                     });
+                    let var = ir::VarRef::new(name, ty_var.clone());
                     decls.push(var.clone());
                     self.scope.insert(&name, var.clone());
                     self.push_inst(ir::Stmt::Decl(var.clone()));
-                    if let Some(ty) = ty {
-                        ty_var.unify_ty(self.compile_ast_ty(&ty));
-                    }
+
                     if let Some(expr) = expr {
                         let (expr, expr_ty) = self.compile_expr(&expr);
-                        expr_ty.unify_var(&ty_var).unwrap();
+                        expr_ty
+                            .unify_var(&ty_var)
+                            .expect("initialiser expr has incorrect type");
                         self.push_inst(ir::Stmt::Assign {
                             ref_expr: ir::Expr::Ref(ir::RefExpr::Var(var)),
                             expr,
@@ -85,7 +102,9 @@ impl<'s> Compiler<'s> {
                 ast::Stmt::Assign { ref_expr, expr } => {
                     let (expr, expr_ty) = self.compile_expr(&expr);
                     let (ref_expr, ref_expr_ty) = self.compile_ref_expr(&ref_expr);
-                    expr_ty.unify_var(&ref_expr_ty).unwrap();
+                    expr_ty
+                        .unify_var(&ref_expr_ty)
+                        .expect("assign to variable with wrong type");
                     self.push_inst(ir::Stmt::Assign {
                         ref_expr: ir::Expr::Ref(ref_expr),
                         expr,
@@ -94,26 +113,21 @@ impl<'s> Compiler<'s> {
                 ast::Stmt::DerefAssign { ref_expr, expr } => {
                     let (expr, expr_ty) = self.compile_expr(&expr);
                     let (ref_expr, ref_expr_ty) = self.compile_expr(&ref_expr);
-                    ref_expr_ty.unify_ty(Type::Ptr(expr_ty));
+                    ref_expr_ty
+                        .unify_ty(Type::Ptr(expr_ty))
+                        .expect("invalid pointer expression");
                     self.push_inst(ir::Stmt::Assign { ref_expr, expr });
                 }
                 ast::Stmt::If(if_stmt) => self.compile_if(if_stmt),
                 ast::Stmt::While { cond, block } => {
-                    let cond_block = self.func.new_block();
-                    let loop_block = self.func.new_block();
-                    let exit_block = self.func.new_block();
-
-                    let (cond, cond_ty) = self.compile_expr(&cond);
-                    cond_ty.unify_ty(Type::Bool);
+                    let cond_block = self.func.alloc_block();
+                    let loop_block = self.func.alloc_block();
+                    let exit_block = self.func.alloc_block();
 
                     self.set_branch(ir::Branch::Static(cond_block));
 
                     self.block = cond_block;
-                    self.set_branch(ir::Branch::Cond {
-                        cond,
-                        if_true: loop_block,
-                        if_false: exit_block,
-                    });
+                    self.compile_cond(&cond, loop_block, exit_block);
 
                     self.block = loop_block;
                     self.compile_block(&block);
@@ -132,7 +146,8 @@ impl<'s> Compiler<'s> {
                                     .as_ref()
                                     .expect("func signature does not specify return type"),
                             ),
-                        );
+                        )
+                        .expect("returns wrong type for function");
                         expr
                     });
                     self.set_branch(ir::Branch::Return(expr));
@@ -144,19 +159,29 @@ impl<'s> Compiler<'s> {
             self.scope.remove(var.name());
         }
     }
-    fn compile_if(&mut self, if_stmt: &'s ast::If) {
-        let if_block = self.func.new_block();
-        let else_block = self.func.new_block();
-        let exit_block = self.func.new_block();
-
-        let (cond, cond_ty) = self.compile_expr(&if_stmt.cond);
-        cond_ty.unify_ty(Type::Bool);
+    fn compile_cond(
+        &mut self,
+        cond: &ast::Span<ast::Expr>,
+        if_true: ir::BlockRef,
+        if_false: ir::BlockRef,
+    ) {
+        let (cond, cond_ty) = self.compile_expr(&cond);
+        cond_ty
+            .unify_ty(Type::Bool)
+            .expect("expected a boolean in conditional expr");
 
         self.set_branch(ir::Branch::Cond {
             cond,
-            if_true: if_block,
-            if_false: else_block,
+            if_true,
+            if_false,
         });
+    }
+    fn compile_if(&mut self, if_stmt: &'s ast::If) {
+        let if_block = self.func.alloc_block();
+        let else_block = self.func.alloc_block();
+        let exit_block = self.func.alloc_block();
+
+        self.compile_cond(&if_stmt.cond, if_block, else_block);
 
         self.block = if_block;
         self.compile_block(&if_stmt.if_block);
@@ -179,8 +204,16 @@ impl<'s> Compiler<'s> {
             ast::Expr::Infix { left, right, op } => {
                 let (left_expr, left_ty) = self.compile_expr(left);
                 let (right_expr, right_ty) = self.compile_expr(right);
-                left_ty.unify_ty(Type::AnyInt);
-                right_ty.unify_var(&left_ty).unwrap();
+                left_ty
+                    .unify_ty(Type::AnyInt)
+                    .expect("left side of infix expr must be numeric");
+                right_ty
+                    .unify_ty(Type::AnyInt)
+                    .expect("right side of infix expr must be numeric");
+
+                right_ty
+                    .unify_var(&left_ty)
+                    .expect("left and right side of infix expr must have same numeric type");
                 let expr = ir::Expr::Infix {
                     left: Box::new(left_expr),
                     right: Box::new(right_expr),
@@ -194,13 +227,15 @@ impl<'s> Compiler<'s> {
                 (ir::Expr::Ref(ref_expr), ty)
             }
             ast::Expr::Ident(name) => {
-                let var = self.scope.get(name.as_str()).unwrap();
+                let var = self.scope.get(name.as_str()).expect("undefined variable");
                 (ir::Expr::Var(var.clone()), var.ty().clone())
             }
             ast::Expr::Deref(expr) => {
                 let (expr, expr_ty) = self.compile_expr(expr);
                 let any = TypeVarRef::new(Type::Any);
-                expr_ty.unify_ty(Type::Ptr(any.clone()));
+                expr_ty
+                    .unify_ty(Type::Ptr(any.clone()))
+                    .expect("trying to deref a non-pointer expr");
                 (ir::Expr::Deref(Box::new(expr)), any)
             }
             ast::Expr::Call(func_call) => {
@@ -217,9 +252,11 @@ impl<'s> Compiler<'s> {
                 for (arg, param) in func_call.args.iter().zip(&func.params) {
                     let (arg_expr, arg_ty) = self.compile_expr(arg);
                     args.push(arg_expr);
-                    arg_ty.unify_ty(self.compile_ast_ty(&param.ty));
+                    arg_ty
+                        .unify_ty(self.compile_ast_ty(&param.ty))
+                        .expect("incorrect argument in function call");
                 }
-                let return_block = self.func.new_block();
+                let return_block = self.func.alloc_block();
                 self.set_branch(ir::Branch::Call {
                     name: func.name.clone(),
                     args,
@@ -243,7 +280,7 @@ impl<'s> Compiler<'s> {
     fn compile_ref_expr(&self, ref_expr: &ast::Span<ast::RefExpr>) -> (ir::RefExpr, TypeVarRef) {
         match &ref_expr.ty {
             ast::RefExpr::Ident(name) => {
-                let var = self.scope.get(name.as_str()).unwrap();
+                let var = self.scope.get(name.as_str()).expect("undefined variable");
                 (ir::RefExpr::Var(var.clone()), var.ty().clone())
             }
         }

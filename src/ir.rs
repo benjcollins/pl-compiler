@@ -88,8 +88,11 @@ impl hash::Hash for VarRef {
 impl Eq for VarRef {}
 
 impl VarRef {
-    pub fn new(var: Var) -> VarRef {
-        VarRef(Rc::new(var))
+    pub fn new(name: impl Into<String>, ty: TypeVarRef) -> VarRef {
+        VarRef(Rc::new(Var {
+            name: name.into(),
+            ty,
+        }))
     }
     pub fn name(&self) -> &str {
         &self.0.name
@@ -109,15 +112,15 @@ impl Block {
 }
 
 impl Func {
-    pub fn new(name: String) -> Func {
+    pub fn new(name: impl Into<String>) -> Func {
         Func {
-            name,
+            name: name.into(),
             blocks: vec![Block::new()],
             entry: BlockRef(0),
             params: vec![],
         }
     }
-    pub fn new_block(&mut self) -> BlockRef {
+    pub fn alloc_block(&mut self) -> BlockRef {
         self.blocks.push(Block::new());
         BlockRef(self.blocks.len() - 1)
     }

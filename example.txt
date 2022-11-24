@@ -1,10 +1,6 @@
 func f() {
     var x;
     var y: *i32 = &x;
-    var z = *y;
-    if true {
-        *y = 2;
-    } else {
-        x = 2;
-    }
+
+    *y = 2;
 }

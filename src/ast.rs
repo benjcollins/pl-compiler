@@ -13,6 +13,7 @@ pub struct Span<T> {
 pub enum Expr {
     Call(FuncCall),
     Int(u32),
+    Bool(bool),
     Infix {
         left: Box<Span<Expr>>,
         right: Box<Span<Expr>>,
@@ -21,7 +22,6 @@ pub enum Expr {
     Deref(Box<Span<Expr>>),
     Ref(Span<RefExpr>),
     Ident(String),
-    Bool(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
