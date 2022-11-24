@@ -68,11 +68,15 @@ impl<T: Unify + Clone + fmt::Debug> UnifyVarRef<T> {
         *other.0.borrow_mut() = UnifyVar::Equal(var);
         Ok(())
     }
-    pub fn unify_ty(&self, new_ty: T) {
+    pub fn unify_ty(&self, new_ty: T) -> Result<(), (UnifyVarRef<T>, T)> {
         match &mut *self.0.borrow_mut() {
-            UnifyVar::Equal(ty_var) => ty_var.unify_ty(new_ty),
-            UnifyVar::Is(ty) => *ty = ty.unify(&new_ty).unwrap(),
-        }
+            UnifyVar::Equal(ty_var) => ty_var.unify_ty(new_ty)?,
+            UnifyVar::Is(ty) => *ty = match ty.unify(&new_ty) {
+                Some(ty) => ty,
+                None => return Err((self.clone(), new_ty)),
+            },
+        };
+        Ok(())
     }
 }
 
