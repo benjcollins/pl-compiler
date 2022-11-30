@@ -29,7 +29,7 @@ impl<'v, T: Unify<'v> + Clone + fmt::Debug> UnifyVars<'v, T> {
         UnifyVarRef(self.arena.alloc(RefCell::new(UnifyVar::Is(ty))))
     }
     pub fn unify(&'v self, a: UnifyVarRef<'v, T>, b: UnifyVarRef<'v, T>) -> UnifyVarRef<'v, T> {
-        if a.peek(|a| b.peek(|b| ptr::eq(a, b))) {
+        if a.apply(|a| b.apply(|b| ptr::eq(a, b))) {
             return a;
         }
         a.map(|a| b.map(|b| self.alloc_type_var(a.unify(b, self).unwrap())))
@@ -60,19 +60,19 @@ impl<'v, T: Unify<'v> + Clone> UnifyVarRef<'v, T> {
         *self.0.borrow_mut() = UnifyVar::Equal(unify_var_ref);
         unify_var_ref
     }
-    pub fn peek<U>(&self, mut f: impl FnMut(&T) -> U) -> U {
+    pub fn apply<U>(&self, mut f: impl FnMut(&T) -> U) -> U {
         match &*self.0.borrow() {
-            UnifyVar::Equal(var) => var.peek(f),
+            UnifyVar::Equal(var) => var.apply(f),
             UnifyVar::Is(ty) => f(ty),
         }
     }
     pub fn get_ty(&self) -> T {
-        self.peek(|a| a.clone())
+        self.apply(|a| a.clone())
     }
 }
 
 impl<'v, T: Unify<'v> + Display + Clone> fmt::Display for UnifyVarRef<'v, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.peek(|ty| write!(f, "{}", ty))
+        self.apply(|ty| write!(f, "{}", ty))
     }
 }

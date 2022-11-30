@@ -23,12 +23,14 @@ pub struct Func<'c> {
     pub types: TypeVars<'c>,
 }
 
+#[derive(Debug, Clone)]
 pub enum Stmt<'f> {
     Decl(&'f Variable<'f>),
     Drop(&'f Variable<'f>),
     Assign { ref_expr: Expr<'f>, expr: Expr<'f> },
 }
 
+#[derive(Clone)]
 pub enum Branch<'f> {
     Static(BlockRef<'f>),
     Cond {
@@ -39,6 +41,34 @@ pub enum Branch<'f> {
     Return(Option<Expr<'f>>),
 }
 
+// pub enum IterBranchTargets<'f> {
+//     None,
+//     One
+// }
+
+// impl<'f> Iterator for IterBranchTargets<'f> {
+//     type Item = BlockRef<'f>;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let (branch, ret) = match &self.0 {
+//             Branch::Static(target) => (Branch::Return(None), Some(*target)),
+//             Branch::Cond {
+//                 if_true, if_false, ..
+//             } => (Branch::Static(*if_false), Some(*if_true)),
+//             Branch::Return(_) => (Branch::Return(None), None),
+//         };
+//         self.0 = branch;
+//         ret
+//     }
+// }
+
+// impl<'f> Branch<'f> {
+//     pub fn iter_branch_targets(&self) -> IterBranchTargets<'f> {
+//         IterBranchTargets(self.clone())
+//     }
+// }
+
+#[derive(Debug, Clone)]
 pub enum Expr<'f> {
     Bool(bool),
     Int(u32),
@@ -52,10 +82,12 @@ pub enum Expr<'f> {
     Var(&'f Variable<'f>),
 }
 
+#[derive(Debug, Clone)]
 pub enum RefExpr<'f> {
     Var(&'f Variable<'f>),
 }
 
+#[derive(Debug)]
 pub struct Variable<'f> {
     pub name: String,
     pub ty: TypeVarRef<'f>,
@@ -99,6 +131,9 @@ impl<'f> Func<'f> {
     pub fn alloc_block(&'f self) -> BlockRef<'f> {
         BlockRef(self.blocks.alloc(RefCell::new(Block::new())))
     }
+    // pub fn alloc_var(&'f self, var: Variable<'f>) -> &'f Variable<'f> {
+    //     self.vars.alloc(var)
+    // }
 }
 
 impl<'f> BlockRef<'f> {

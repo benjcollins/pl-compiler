@@ -4,13 +4,17 @@ use std::fs;
 
 use compile_ast::compile_ast;
 
-use crate::parser::Parser;
+use crate::{
+    parser::Parser,
+    region::{propagate_regions, Regions},
+};
 
 mod ast;
 mod compile_ast;
 mod ir;
 mod lexer;
 mod parser;
+mod region;
 mod test_lexer;
 mod test_parser;
 mod token;
@@ -31,5 +35,9 @@ fn main() {
     let ir_func = ir::Func::new();
     let entry = compile_ast(&func, &ir_func);
 
-    println!("{}", entry)
+    println!("{}", entry);
+
+    let regions = propagate_regions(entry, &Regions::new());
+
+    println!("{:?}", regions);
 }
