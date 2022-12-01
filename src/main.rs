@@ -2,14 +2,15 @@
 
 use std::fs;
 
-use crate::{compile_ast::compile_program, parser::Parser, region::check_program};
+use crate::{compile_ast::compile_program, mem::check_program, parser::Parser};
 
 mod ast;
 mod compile_ast;
 mod ir;
 mod lexer;
+mod mem;
 mod parser;
-mod region;
+mod refr;
 mod token;
 mod ty;
 mod unify;

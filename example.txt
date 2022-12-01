@@ -1,6 +1,10 @@
-func f() {
+func f() i32 {
     var x;
-    var y: *i32 = &x;
-
-    *y = 2;
+    var y = &x;
+    if (true) {
+        *y = 2;
+    } else {
+        *y = 9;
+    }
+    return x + 1;
 }

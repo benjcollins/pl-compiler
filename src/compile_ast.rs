@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{self, Span},
-    ir,
+    ast, ir,
     ty::{Type, TypeVarRef},
 };
 
@@ -50,15 +49,15 @@ pub fn compile_func(func_ast: &ast::Func, program_ast: &ast::Program) -> ir::Fun
 // * function does not return
 // * cannot deref non-pointer
 
-enum TypeError {
-    Assignment,
-    Compare,
-    NotNumeric,
-    TypesDontMatch,
-    IncorrectReturn,
-    UnexpectedReturn,
-    ExpectedPointer,
-}
+// enum TypeError {
+//     Assignment,
+//     Compare,
+//     NotNumeric,
+//     TypesDontMatch,
+//     IncorrectReturn,
+//     UnexpectedReturn,
+//     ExpectedPointer,
+// }
 
 impl<'s> Compiler<'s> {
     fn compile_ast_ty(&self, ty: &ast::Span<ast::Type>) -> Type {

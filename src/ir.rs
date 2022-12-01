@@ -214,7 +214,7 @@ impl fmt::Display for Func {
         let mut param_iter = self.params.iter();
         if let Some(param) = param_iter.next() {
             write!(f, "{}: {}", param.0.name, param.0.ty)?;
-            for param in param_iter.next() {
+            for param in param_iter {
                 write!(f, ", {}: {}", param.0.name, param.0.ty)?;
             }
         }
